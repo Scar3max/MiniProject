@@ -1,0 +1,17 @@
+# Large model files (GGUF weights)
+*.gguf
+
+# Environment variables & secrets
+.env
+.env.*
+
+# Python caching & build files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
