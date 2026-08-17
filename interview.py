@@ -1,15 +1,29 @@
 
 import google.generativeai as genai
+import sys
 import os
 import json
 import time
-from llama_cpp import Llama
+
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
+try:
+    from llama_cpp import Llama
+    LLAMA_AVAILABLE = True
+except Exception:
+    Llama = None
+    LLAMA_AVAILABLE = False
 from dotenv import load_dotenv
 import re
 import random
 from typing import List
 
 from momentum_signal import compute_momentum
+from syllabus_service import SyllabusService
 
 # --- 1. Configuration ---
 load_dotenv()
@@ -17,7 +31,7 @@ load_dotenv()
 # --- ⚠️ IMPORTANT: USER MUST CONFIGURE THESE ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 SLM_MODEL_PATH = "Phi3_Interview_Merged-3.8B-F16-001-001.gguf"
-GEMINI_MODEL_NAME = "gemini-2.5-flash-lite"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 # Quality thresholds and tuning knobs
 QUALITY_THRESHOLD = 7         # used to mark strong overall performance (logging)
@@ -361,25 +375,31 @@ class InterviewOrchestrator:
         # a JSON config reused for JSON outputs
         self.json_config = genai.GenerationConfig(response_mime_type="application/json")
 
+        # Initialize Syllabus Service
+        self.syllabus_service = SyllabusService(self.gemini_model)
+
         # 2. Configure SLM
         self.slm_model = None
-        try:
-            print(f"Loading SLM from: {SLM_MODEL_PATH}...")
-            print("This will take a moment as it loads into your M4's GPU RAM...")
-            start_load = time.time()
-            self.slm_model = Llama(
-                model_path=SLM_MODEL_PATH,
-                n_gpu_layers=-1,
-                n_ctx=2048,
-                verbose=False
-            )
-            load_time = time.time() - start_load
-            print(f"✅ SLM (GGUF) model loaded in {load_time:.2f} seconds.")
-        except Exception as e:
-            print(f"❌ FAILED TO LOAD SLM MODEL from {SLM_MODEL_PATH}")
-            print(f"   Make sure 'SLM_MODEL_PATH' is correct.")
-            print(f"   Error: {e}")
-            print("   Will continue in Gemini-only fallback mode.")
+        if LLAMA_AVAILABLE:
+            try:
+                print(f"Loading SLM from: {SLM_MODEL_PATH}...")
+                print("This will take a moment as it loads...")
+                start_load = time.time()
+                self.slm_model = Llama(
+                    model_path=SLM_MODEL_PATH,
+                    n_gpu_layers=-1,
+                    n_ctx=2048,
+                    verbose=False
+                )
+                load_time = time.time() - start_load
+                print(f"✅ SLM (GGUF) model loaded in {load_time:.2f} seconds.")
+            except Exception as e:
+                print(f"❌ FAILED TO LOAD SLM MODEL from {SLM_MODEL_PATH}")
+                print(f"   Make sure 'SLM_MODEL_PATH' is correct.")
+                print(f"   Error: {e}")
+                print("   Will continue in Gemini-only fallback mode.")
+        else:
+            print("⚠️ 'llama_cpp' module not available. Continuing in Gemini-only fallback mode.")
 
         # 3. Generate the Syllabus
         self._generate_syllabus()
@@ -388,15 +408,13 @@ class InterviewOrchestrator:
         """[Call 0] Generates the interview topic plan at the start."""
         print(f"\n...Generating interview syllabus for: {self.domain}...")
         try:
-            prompt = PROMPT_SYLLABUS_GENERATOR.format(domain=self.domain)
-            json_config_syllabus = genai.GenerationConfig(response_mime_type="application/json")
-            response = self.gemini_model.generate_content(prompt, generation_config=json_config_syllabus)
+            # Use the new SyllabusService which handles caching
+            syllabus = self.syllabus_service.get_syllabus(self.domain, PROMPT_SYLLABUS_GENERATOR)
 
-            clean_response = response.text.replace("```json", "").replace("```", "").strip()
-            self.topic_syllabus = json.loads(clean_response)
-
-            if not self.topic_syllabus:
+            if not syllabus:
                 raise ValueError("Syllabus is empty")
+                
+            self.topic_syllabus = syllabus
 
             print("...Shuffling syllabus topics...")
             random.shuffle(self.topic_syllabus)

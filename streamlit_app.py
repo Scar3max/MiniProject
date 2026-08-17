@@ -1,9 +1,17 @@
+import sys
+import os
+
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import streamlit as st
 import streamlit.components.v1 as components
 import time
 import json
 from interview import InterviewOrchestrator
-import os
 
 # Page configuration
 st.set_page_config(
