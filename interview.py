@@ -4,6 +4,7 @@ import sys
 import os
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 if hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -728,10 +729,28 @@ class InterviewOrchestrator:
         response = self.gemini_model.generate_content(prompt)
         return response.text.strip()
 
+    def _evaluate_answer_parallel(self, question: str, answer: str):
+        """[Call Parallel Evaluation] Evaluates classification and scoring concurrently."""
+        print("\n...Parallel evaluation started...")
+        start_time = time.perf_counter()
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            analysis_future = executor.submit(self._get_gemini_analysis, question, answer)
+            score_future = executor.submit(self._get_gemini_score, question, answer)
+            
+            analysis = analysis_future.result()
+            score_result = score_future.result()
+            
+        elapsed = time.perf_counter() - start_time
+        print(f"...Parallel evaluation completed in {elapsed:.2f}s")
+        return analysis, score_result
+
     def process_user_answer(self, user_answer: str):
         
         self.conversation_history.append({"role": "user", "content": user_answer})
-        analysis = self._get_gemini_analysis(self.last_question, user_answer)
+        
+        # Concurrent evaluation
+        analysis, score_result = self._evaluate_answer_parallel(self.last_question, user_answer)
 
         # Extract classification and notes from analyzer
         answer_type = analysis.get("answer_type", "Normal")
@@ -805,18 +824,17 @@ class InterviewOrchestrator:
             return {"status": "TERMINATED", "analysis": analysis}
 
         # ------------- Priority 2: Knowledge Gap (instant mercy pivot) -------------
-        # If user explicitly says "I don't know" (KNOWLEDGE_GAP) — immediate mercy pivot (no scoring call)
+        # If user explicitly says "I don't know" (KNOWLEDGE_GAP) — immediate mercy pivot (ignore parallel score)
         if answer_type == "KNOWLEDGE_GAP":
-            print(f"...User 'KNOWLEDGE_GAP' detected. Forcing a 'Mercy Pivot' (no scoring).")
+            print(f"...User 'KNOWLEDGE_GAP' detected. Forcing a 'Mercy Pivot' (ignoring parallel score).")
             topic_complete_flag = True
             hint = f"Candidate is stuck on '{self.current_topic}'. Ask a new L0 question for the next topic: '{self.topic_syllabus[0] if self.topic_syllabus else 'a new area'}'."
-            # Do not call scorer — immediate pivot
+            # Force score to 0.0
             score = 0.0
             # defensive: prevent momentum forced pivot this round
             momentum_causes_forced_pivot = False
         else:
-            # ------------- Else: call the separate scorer -------------
-            score_result = self._get_gemini_score(self.last_question, user_answer)
+            # ------------- Extract the separate parallel score -------------
             score = score_result.get("score", None)
             score_reason = score_result.get("score_reason", "")
 
