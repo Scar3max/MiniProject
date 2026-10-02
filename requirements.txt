@@ -5,5 +5,5 @@ flask>=3.0.0
 flask-cors>=4.0.0
 requests>=2.31.0
 plotly>=5.18.0
-llama-cpp-python>=0.3.0
-huggingface-hub>=0.20.0
+# Note: llama-cpp-python is optional for local GGUF execution and excluded here to allow lightweight cloud deployment
+# Install locally with: pip install llama-cpp-python
