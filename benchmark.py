@@ -7,8 +7,8 @@ from interview import InterviewOrchestrator
 
 def sequential_evaluation(orchestrator, question, answer):
     start = time.perf_counter()
-    analysis = orchestrator._get_gemini_analysis(question, answer)
-    score_result = orchestrator._get_gemini_score(question, answer)
+    analysis = orchestrator._get_groq_analysis(question, answer)
+    score_result = orchestrator._get_groq_score(question, answer)
     elapsed = time.perf_counter() - start
     return elapsed, analysis, score_result
 
@@ -34,9 +34,9 @@ def main():
     print("\nStarting benchmark (3 runs each)...")
     
     # Warmup
-    print("Warming up Gemini API...")
+    print("Warming up Groq API...")
     try:
-        orchestrator._get_gemini_score("Hi", "Hello")
+        orchestrator._get_groq_score("Hi", "Hello")
     except:
         pass
         

@@ -1,5 +1,5 @@
 
-import google.generativeai as genai
+from groq import Groq
 import sys
 import os
 import json
@@ -30,9 +30,9 @@ from syllabus_service import SyllabusService
 load_dotenv()
 
 # --- ⚠️ IMPORTANT: USER MUST CONFIGURE THESE ---
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-SLM_MODEL_PATH = "Phi3_Interview_Merged-3.8B-F16-001-001.gguf"
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+SLM_MODEL_PATH = "qwen_interview_q4_k_m.gguf"
+GROQ_MODEL_NAME = "qwen/qwen3.8-27b"
 
 # Quality thresholds and tuning knobs
 QUALITY_THRESHOLD = 7         # used to mark strong overall performance (logging)
@@ -77,7 +77,7 @@ Avoid abstract topics like 'Problem Framing'.
 Output *only* the JSON list.
 """
 
-# [Call Type 1: Gemini L0 Generator]
+# [Call Type 1: Groq L0 Generator]
 PROMPT_L0_GENERATOR = """
 You are an expert technical interviewer. You are about to begin an interview in the domain: {domain}.
 
@@ -97,7 +97,7 @@ Generate exactly ONE concise, domain-factual opening question that:
 Output: one concise, factual opening question only.
 """
 
-# [Call Type 2: Gemini Analyzer/Judge/Strategist]
+# [Call Type 2: Groq Analyzer/Judge/Strategist]
 # NOTE: This prompt now includes the last 1-2 assistant questions (recent_questions)
 PROMPT_ANALYZER = """
 You are an expert interview judge and strategist. Your job is to analyze the candidate's last answer and provide a JSON-ONLY response to guide the next step.
@@ -188,8 +188,8 @@ SCORING RULES:
 Round to one decimal place. Output valid JSON and nothing else.
 """
 
-# [Call Type 3: Gemini Expert/Fallback]
-PROMPT_GEMINI_EXPERT = """
+# [Call Type 3: Groq Expert/Fallback]
+PROMPT_GROQ_EXPERT = """
 {global_prompt}
 
 You are taking over the conversation. 
@@ -226,22 +226,9 @@ Output: exactly the transition (optional) plus the question (required), separate
 """
 
 # [Call Type 4: SLM Triage Prompt] (The "Smart Triage" prompt)
-PROMPT_SLM_TRIAGE = """
-You are a succinct technical interviewer for the domain: {topic}.
-Your single job: produce ONE short-follow up question (12–18 words max) that is:
-- a factual, clarifying, or easy next step given the candidate's last answer,
-- never multi-part, never a lecture, and never includes praise (no good, great, excellent, nice, fascinating, interesting).
-Output must be exactly the question text only (no preamble, no commentary).
+PROMPT_SLM_TRIAGE = """You are a professional technical interviewer for a campus SDE hiring interview, focused on {topic}. Ask thoughtful, adaptive follow-up questions based on the candidate's responses. If the candidate's answer is complete nonsense or a non-answer (like 'yes' or 'sure'), respond ONLY with the single token `[CONFIDENCE_LOW]`."""
 
-Constraints:
-- If the candidate's last answer shows hesitation, trailing off, filler tokens (e.g., "umm", "uh", "hmm", "..."),
-  or contains fewer than 3 meaningful (non-filler) words, output the single token: [CONFIDENCE_LOW]
-- If you cannot produce a clear, concise question within 18 words, return: [CONFIDENCE_LOW]
-
-Tone: calm, short, and clarifying.
-"""
-
-# [Call Type 5: Gemini Refiner]
+# [Call Type 5: Groq Refiner]
 PROMPT_REFINER = """
 {global_prompt}
 
@@ -301,7 +288,7 @@ Avoid repeating the same phrases such as “That’s a good start”, “Right�
 Final output must be natural and brief.
 """
 
-# [Call Type 6: Gemini Pivot Generator]
+# [Call Type 6: Groq Pivot Generator]
 PROMPT_TOPIC_PIVOT = """
 You are generating the FIRST question for a NEW topic: {topic}.
 
@@ -338,13 +325,13 @@ Output only the transition+question text.
 # -------------------------
 class InterviewOrchestrator:
     """
-    Manages the ADAPTIVE interview flow, switching between SLM and Gemini.
+    Manages the ADAPTIVE interview flow, switching between SLM and Groq.
     Patches applied per user spec: analyzer receives last 1-2 assistant questions,
     2 consecutive hesitations -> knowledge gap, momentum normalization configurable,
     refined prompts forbidding robotic phrases and semicolons, and normalized outputs.
 
     KEY CHANGE: Analyzer numeric/advisory score is IGNORED for orchestration decisions.
-               Numeric decisions rely on the dedicated Scorer (Gemini Scorer).
+               Numeric decisions rely on the dedicated Scorer (Groq Scorer).
                Pivot logic requires 2 consecutive STRONG_NEGATIVE momentum detections
                (grace window), tracked by self.pivot_grace_counter.
     """
@@ -369,15 +356,12 @@ class InterviewOrchestrator:
         self.pivot_grace_counter = 0
         self.PIVOT_GRACE_REQUIRED = 2  # require 2 consecutive weak turns to pivot
 
-        # 1. Configure Gemini
-        print(f"Configuring Gemini with model: {GEMINI_MODEL_NAME}")
-        genai.configure(api_key=GOOGLE_API_KEY)
-        self.gemini_model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-        # a JSON config reused for JSON outputs
-        self.json_config = genai.GenerationConfig(response_mime_type="application/json")
+        # 1. Configure Groq
+        print(f"Configuring Groq with model: {GROQ_MODEL_NAME}")
+        self.groq_client = Groq(api_key=GROQ_API_KEY)
 
         # Initialize Syllabus Service
-        self.syllabus_service = SyllabusService(self.gemini_model)
+        self.syllabus_service = SyllabusService(self.groq_client)
 
         # 2. Configure SLM
         self.slm_model = None
@@ -390,6 +374,7 @@ class InterviewOrchestrator:
                     model_path=SLM_MODEL_PATH,
                     n_gpu_layers=-1,
                     n_ctx=2048,
+                    chat_format="chatml",
                     verbose=False
                 )
                 load_time = time.time() - start_load
@@ -398,9 +383,9 @@ class InterviewOrchestrator:
                 print(f"❌ FAILED TO LOAD SLM MODEL from {SLM_MODEL_PATH}")
                 print(f"   Make sure 'SLM_MODEL_PATH' is correct.")
                 print(f"   Error: {e}")
-                print("   Will continue in Gemini-only fallback mode.")
+                print("   Will continue in Groq-only fallback mode.")
         else:
-            print("⚠️ 'llama_cpp' module not available. Continuing in Gemini-only fallback mode.")
+            print("⚠️ 'llama_cpp' module not available. Continuing in Groq-only fallback mode.")
 
         # 3. Generate the Syllabus
         self._generate_syllabus()
@@ -437,17 +422,20 @@ class InterviewOrchestrator:
             self.current_topic = self.domain  # Fallback
 
     def start_interview(self):
-        """[Call Type 1] Generates the first L0 question using Gemini."""
-        print(f"\n...Calling Gemini for L0 question (Topic: {self.current_topic})...")
+        """[Call Type 1] Generates the first L0 question using Groq."""
+        print(f"\n...Calling Groq for L0 question (Topic: {self.current_topic})...")
 
         prompt = PROMPT_L0_GENERATOR.format(
             global_prompt=GLOBAL_INTERVIEWER_PROMPT,
             domain=self.domain
         )
 
-        response = self.gemini_model.generate_content(prompt)
+        response = self.groq_client.chat.completions.create(
+            model=GROQ_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
-        l0_question = self._normalize_output(response.text.strip())
+        l0_question = self._normalize_output(response.choices[0].message.content.strip())
         self.last_question = l0_question
         self.conversation_history.append({"role": "assistant", "content": l0_question})
         return l0_question
@@ -515,13 +503,13 @@ class InterviewOrchestrator:
         assistant_qs = [turn['content'] for turn in reversed(self.conversation_history) if turn['role'] == 'assistant']
         return assistant_qs[:n]
 
-    def _get_gemini_analysis(self, question: str, answer: str):
-        """[Call Type 2] Calls Gemini to analyze and classify the answer (Analyzer).
+    def _get_groq_analysis(self, question: str, answer: str):
+        """[Call Type 2] Calls Groq to analyze and classify the answer (Analyzer).
         NOTE: The numeric 'answer_quality_score' produced by analyzer is advisory only and
         intentionally IGNORED by the orchestrator. We still rely on analyzer for 'answer_type',
         'analysis_notes', and 'strategic_question' textual guidance.
         """
-        print("\n...Calling Gemini (Judge/Strategist) for analysis...")
+        print("\n...Calling Groq (Judge/Strategist) for analysis...")
         recent_qs = self._get_recent_assistant_questions(2)
         try:
             recent_json = json.dumps(recent_qs)
@@ -534,11 +522,12 @@ class InterviewOrchestrator:
             recent_questions_json=recent_json
         )
         try:
-            response = self.gemini_model.generate_content(
-                prompt,
-                generation_config=self.json_config
+            response = self.groq_client.chat.completions.create(
+                model=GROQ_MODEL_NAME,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
             )
-            clean_response = response.text.replace("```json", "").replace("```", "").strip()
+            clean_response = response.choices[0].message.content.strip()
             analysis = json.loads(clean_response)
 
             def to_bool(val):
@@ -553,9 +542,9 @@ class InterviewOrchestrator:
             return analysis
 
         except Exception as e:
-            print(f"❌ Error parsing Gemini analysis JSON: {e}")
+            print(f"❌ Error parsing Groq analysis JSON: {e}")
             try:
-                raw = response.text
+                raw = response.choices[0].message.content
             except:
                 raw = "<no raw response>"
             print(f"   Raw response: {raw}")
@@ -570,14 +559,17 @@ class InterviewOrchestrator:
                 "reason_for_termination": "Analysis Error"
             }
 
-    def _get_gemini_score(self, question: str, answer: str):
-        """NEW: [Call SCORER] Calls Gemini with the separate scoring prompt and returns a float score and reason."""
-        print("\n...Calling Gemini (Scorer) for numeric score...")
+    def _get_groq_score(self, question: str, answer: str):
+        """NEW: [Call SCORER] Calls Groq with the separate scoring prompt and returns a float score and reason."""
+        print("\n...Calling Groq (Scorer) for numeric score...")
         prompt = PROMPT_SCORER.format(question=question, answer=answer)
         try:
-            # Use json config for strict JSON parsing
-            response = self.gemini_model.generate_content(prompt, generation_config=self.json_config)
-            clean_response = response.text.replace("```json", "").replace("```", "").strip()
+            response = self.groq_client.chat.completions.create(
+                model=GROQ_MODEL_NAME,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            clean_response = response.choices[0].message.content.strip()
             score_json = json.loads(clean_response)
             # Ensure rounding to 1 decimal
             score_val = float(score_json.get("score", 0.0))
@@ -594,7 +586,7 @@ class InterviewOrchestrator:
         except Exception as e:
             print(f"❌ Scorer call or JSON parse failed: {e}")
             try:
-                raw = response.text
+                raw = response.choices[0].message.content
             except:
                 raw = "<no raw response>"
             print(f"   Raw scorer response: {raw}")
@@ -661,16 +653,16 @@ class InterviewOrchestrator:
             print(f"...SLM FAILED (Exception): {e}")
             return None
 
-    def _get_gemini_expert_question(self, hint: str):
-        """[Call Type 3] Calls Gemini for an "Expert" or "Fallback" question."""
-        print(f"...Calling Gemini (Expert/Fallback). Hint: {hint}...")
+    def _get_groq_expert_question(self, hint: str):
+        """[Call Type 3] Calls Groq for an "Expert" or "Fallback" question."""
+        print(f"...Calling Groq (Expert/Fallback). Hint: {hint}...")
 
         history_str = ""
         for turn in self.conversation_history:
             role = "Interviewer" if turn['role'] == 'assistant' else "Candidate"
             history_str += f"{role}: {turn['content']}\n"
 
-        prompt = PROMPT_GEMINI_EXPERT.format(
+        prompt = PROMPT_GROQ_EXPERT.format(
             global_prompt=GLOBAL_INTERVIEWER_PROMPT,
             domain=self.domain,
             history=history_str,
@@ -678,12 +670,15 @@ class InterviewOrchestrator:
             forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         )
 
-        response = self.gemini_model.generate_content(prompt)
-        return response.text.strip()
+        response = self.groq_client.chat.completions.create(
+            model=GROQ_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
 
-    def _get_gemini_refinement(self, user_answer: str, analysis_notes: str, slm_output: str, hint: str, answer_type: str = None):
-        """[Call Type 5] Calls Gemini "Editor" to create the final, concise response."""
-        print(f"...Sending all context to Gemini (Editor) for final question...")
+    def _get_groq_refinement(self, user_answer: str, analysis_notes: str, slm_output: str, hint: str, answer_type: str = None):
+        """[Call Type 5] Calls Groq "Editor" to create the final, concise response."""
+        print(f"...Sending all context to Groq (Editor) for final question...")
 
         # Compose extra_meta from explicit answer_type (if provided).
         if answer_type:
@@ -705,12 +700,15 @@ class InterviewOrchestrator:
             forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         )
 
-        response = self.gemini_model.generate_content(prompt)
-        return response.text.strip()
+        response = self.groq_client.chat.completions.create(
+            model=GROQ_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
 
-    def _get_gemini_pivot_question(self, new_topic: str, user_answer: str, score, answer_type: str, analysis_notes: str):
-        """[Call Type 6] Calls Gemini to get a new L0 question for a topic pivot."""
-        print(f"...Calling Gemini (Pivot) for new L0 question on: {new_topic}...")
+    def _get_groq_pivot_question(self, new_topic: str, user_answer: str, score, answer_type: str, analysis_notes: str):
+        """[Call Type 6] Calls Groq to get a new L0 question for a topic pivot."""
+        print(f"...Calling Groq (Pivot) for new L0 question on: {new_topic}...")
 
         recent_qs = self._get_recent_assistant_questions(2)
         recent_json = json.dumps(recent_qs)
@@ -726,8 +724,11 @@ class InterviewOrchestrator:
             forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         )
 
-        response = self.gemini_model.generate_content(prompt)
-        return response.text.strip()
+        response = self.groq_client.chat.completions.create(
+            model=GROQ_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
 
     def _evaluate_answer_parallel(self, question: str, answer: str):
         """[Call Parallel Evaluation] Evaluates classification and scoring concurrently."""
@@ -735,8 +736,8 @@ class InterviewOrchestrator:
         start_time = time.perf_counter()
         
         with ThreadPoolExecutor(max_workers=2) as executor:
-            analysis_future = executor.submit(self._get_gemini_analysis, question, answer)
-            score_future = executor.submit(self._get_gemini_score, question, answer)
+            analysis_future = executor.submit(self._get_groq_analysis, question, answer)
+            score_future = executor.submit(self._get_groq_score, question, answer)
             
             analysis = analysis_future.result()
             score_result = score_future.result()
@@ -912,28 +913,28 @@ class InterviewOrchestrator:
         next_question = None
 
         # ---------------- ROUTING LOGIC (preserve original priorities) ----------------
-        # 3. Judge's (Gemini) pivot — NOT used for topic_is_complete orchestration, but keep compatibility:
+        # 3. Judge's (Groq) pivot — NOT used for topic_is_complete orchestration, but keep compatibility:
         # We will ignore analysis['topic_is_complete'] for automatic pivoting to avoid false positives.
 
         # 4. Behavioral interceptors (EVASIVE / CHALLENGE)
         if answer_type == "EVASIVE_NON_ANSWER":
-            print(f"...User is stalling. Calling Gemini (Expert) to be firm.")
+            print(f"...User is stalling. Calling Groq (Expert) to be firm.")
             hint = f"The candidate is stalling ('{user_answer}'). Politely but firmly, re-ask the last question: '{self.last_question}'"
-            next_question = self._get_gemini_expert_question(hint=hint)
+            next_question = self._get_groq_expert_question(hint=hint)
 
         elif answer_type == "EVASIVE_CHALLENGE":
-            print(f"...User is challenging. Calling Gemini (Expert) to restate role.")
+            print(f"...User is challenging. Calling Groq (Expert) to restate role.")
             hint = f"The candidate is challenging ('{user_answer}'). Politely restate your role as the interviewer and then re-ask the last question: '{self.last_question}'"
-            next_question = self._get_gemini_expert_question(hint=hint)
+            next_question = self._get_groq_expert_question(hint=hint)
 
         # ---------- BEGIN: PRIORITIZED HESITATION / KNOWLEDGE / PIVOT GUARDS ----------
         # Optional: Hesitation shortcut — prefer a short clarifying question and skip pivots
         if answer_type == "HESITATION_SIGNAL" and next_question is None and not topic_complete_flag:
-            print("...Answer marked HESITATION_SIGNAL. Using Gemini Expert to produce a short clarifying question.")
+            print("...Answer marked HESITATION_SIGNAL. Using Groq Expert to produce a short clarifying question.")
             hint = f"Candidate hesitated on '{self.current_topic}'. Ask a short, simple clarifying question (<=12 words)."
-            next_question = self._get_gemini_expert_question(hint=hint)
+            next_question = self._get_groq_expert_question(hint=hint)
 
-        # If Gemini Expert already produced a next_question (e.g., from EVASIVE_* or HESITATION),
+        # If Groq Expert already produced a next_question (e.g., from EVASIVE_* or HESITATION),
         # we prefer that expert-crafted question and skip pivoting logic this turn.
         expert_escalation_present = (next_question is not None)
 
@@ -1026,7 +1027,7 @@ class InterviewOrchestrator:
             print(f"...Pivoting to new topic: {self.current_topic}")
             self.questions_in_current_topic = 0
 
-            next_question = self._get_gemini_pivot_question(
+            next_question = self._get_groq_pivot_question(
                 new_topic=self.current_topic,
                 user_answer=user_answer,
                 score=score,
@@ -1034,28 +1035,28 @@ class InterviewOrchestrator:
                 analysis_notes=analysis_notes
             )
 
-        # 8. Default 'Fusion Pass' (SLM triage + Gemini refinement)
+        # 8. Default 'Fusion Pass' (SLM triage + Groq refinement)
         elif next_question is None:
             # NEW: Expert escalation for truly strong NORMAL answers (skip SLM triage, ask deeper expert Q)
             if answer_type == "NORMAL" and float(score) >= DEEP_ESCALATION_THRESHOLD:
                 print(f"...Strong NORMAL answer detected (score={score}). Escalating to expert-level follow-up.")
-                # Provide a hint to the Gemini Expert to ask a deeper, expert-level follow-up. Avoid praise and robotic transitions.
+                # Provide a hint to the Groq Expert to ask a deeper, expert-level follow-up. Avoid praise and robotic transitions.
                 expert_hint = ("Candidate appears well-read. Ask a deeper, expert-level technical follow-up. "
                                "You may include a short formula, a comparison, or ask for trade-offs. "
                                "Do NOT use praise words.")
-                next_question = self._get_gemini_expert_question(hint=expert_hint)
+                next_question = self._get_groq_expert_question(hint=expert_hint)
 
             else:
-                print(f"...Score ({score}) routed to Fusion Pass (SLM -> Gemini Editor).")
+                print(f"...Score ({score}) routed to Fusion Pass (SLM -> Groq Editor).")
                 slm_draft_question = self._get_slm_triage_question()
 
                 if slm_draft_question is None or slm_draft_question == "[CONFIDENCE_LOW]":
-                    print("...SLM failed or escalated. Calling Gemini (Fallback).")
+                    print("...SLM failed or escalated. Calling Groq (Fallback).")
                     fallback_hint = f"Candidate's score was {score} and the SLM (TFailure) failed. Use this hint: {hint}"
-                    next_question = self._get_gemini_expert_question(hint=fallback_hint)
+                    next_question = self._get_groq_expert_question(hint=fallback_hint)
                 else:
                     # pass answer_type to refiner via extra_meta so it can adapt wording
-                    next_question = self._get_gemini_refinement(
+                    next_question = self._get_groq_refinement(
                         user_answer=user_answer,
                         analysis_notes=analysis_notes,
                         slm_output=slm_draft_question,

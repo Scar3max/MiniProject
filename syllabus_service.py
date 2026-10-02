@@ -4,7 +4,7 @@ import time
 import os
 import logging
 import contextlib
-import google.generativeai as genai
+from groq import Groq
 
 SYLLABUS_VERSION = "v1"
 
@@ -19,9 +19,9 @@ if not logger.handlers:
     logger.addHandler(ch)
 
 class SyllabusService:
-    def __init__(self, gemini_model, db_path="interview_cache.db"):
+    def __init__(self, groq_client, db_path="interview_cache.db"):
         self.db_path = db_path
-        self.gemini_model = gemini_model
+        self.groq_client = groq_client
         self.hits = 0
         self.misses = 0
         self._init_db()
@@ -47,7 +47,7 @@ class SyllabusService:
     def get_syllabus(self, domain, prompt_template):
         """
         Retrieves syllabus for the domain.
-        First checks the cache, on miss generates via Gemini and stores it.
+        First checks the cache, on miss generates via Groq and stores it.
         """
         start_time = time.time()
         
@@ -61,12 +61,12 @@ class SyllabusService:
             self._print_stats()
             return cached_syllabus
 
-        # 2. Cache miss -> Gemini generation
+        # 2. Cache miss -> Groq generation
         self.misses += 1
         print(f"[CACHE MISS] syllabus domain={domain} version={SYLLABUS_VERSION}")
-        print(f"[GEMINI] generating syllabus domain={domain} version={SYLLABUS_VERSION}")
+        print(f"[GROQ] generating syllabus domain={domain} version={SYLLABUS_VERSION}")
         
-        syllabus = self._generate_syllabus_with_gemini(domain, prompt_template)
+        syllabus = self._generate_syllabus_with_groq(domain, prompt_template)
         
         # 3. Save to cache
         if syllabus:
@@ -106,17 +106,20 @@ class SyllabusService:
         except Exception as e:
             logger.error(f"Cache write failure: {e}")
 
-    def _generate_syllabus_with_gemini(self, domain, prompt_template):
+    def _generate_syllabus_with_groq(self, domain, prompt_template):
         try:
             prompt = prompt_template.format(domain=domain)
-            json_config_syllabus = genai.GenerationConfig(response_mime_type="application/json")
-            response = self.gemini_model.generate_content(prompt, generation_config=json_config_syllabus)
+            response = self.groq_client.chat.completions.create(
+                model="qwen/qwen3.8-27b",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
             
-            clean_response = response.text.replace("```json", "").replace("```", "").strip()
+            clean_response = response.choices[0].message.content.strip()
             syllabus = json.loads(clean_response)
             return syllabus
         except Exception as e:
-            logger.error(f"Gemini syllabus generation failed: {e}")
+            logger.error(f"Groq syllabus generation failed: {e}")
             return None
 
     def clear_cache(self, domain=None, version=None):
@@ -147,5 +150,5 @@ class SyllabusService:
 
 # Expose a global method for easy cache clearing from outside (e.g., admin console)
 def clear_syllabus_cache(domain=None, version=None, db_path="interview_cache.db"):
-    service = SyllabusService(gemini_model=None, db_path=db_path)
+    service = SyllabusService(groq_client=None, db_path=db_path)
     service.clear_cache(domain, version)

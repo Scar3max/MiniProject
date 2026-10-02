@@ -929,7 +929,7 @@ with st.sidebar:
         st.markdown("""
         **Powered by:**
         
-        🧠 **Gemini AI** - Question generation
+        🧠 **Groq AI** - Question generation
         
         ⚡ **Local SLM** - Smart triage
         
