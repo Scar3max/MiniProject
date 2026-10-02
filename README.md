@@ -20,8 +20,8 @@ An AI-powered technical interview companion that dynamically adjusts its questio
 - **Backend Orchestrator**: Python (`groq`, `llama-cpp-python`)
 - **Performance Analysis**: Plotly
 - **Models**:
-  - Cloud: Llama 3.3 70B Versatile (via Groq)
-  - Edge: Qwen2.5-7B-Instruct (GGUF format)
+  - Cloud: Qwen 3.8 27B (via Groq — `qwen/qwen3.8-27b`)
+  - Edge: Qwen2.5-7B-Instruct (fine-tuned, GGUF Q4_K_M format)
 
 ---
 
@@ -41,7 +41,7 @@ pip install -r requirements.txt
 *(Note: To run the local SLM, ensure you have `llama-cpp-python` installed. You may need build tools like CMake for your specific OS/GPU setup).*
 
 ### 3. Configure Environment Variables
-Create a `.env` file in the root directory and add your Google API key:
+Create a `.env` file in the root directory and add your Groq API key:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 ```
