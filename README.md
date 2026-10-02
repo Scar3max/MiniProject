@@ -48,7 +48,7 @@ GROQ_API_KEY=your_groq_api_key_here
 
 ### 4. Download the GGUF Model
 Because the 7.6GB Small Language Model file (`*.gguf`) is too large for GitHub, it is excluded via `.gitignore`. 
-- Download your fine-tuned Qwen2.5-7B-Instruct model file (`qwen_interview_q4_k_m.gguf` or similar).
+- https://drive.google.com/file/d/1aCP-Of3pr0OW_2MBnDqhyAslbA0Hdnkb/view?usp=drive_link : Download your fine-tuned Qwen2.5-7B-Instruct model file (`qwen_interview_q4_k_m.gguf` or similar) using the given link.
 - Place the `.gguf` file in the **root** of the project directory.
 - Update the filename path in `interview.py` (around line 19) if needed:
   ```python
