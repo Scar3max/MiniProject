@@ -67,7 +67,4 @@ Open the local URL displayed in your terminal (usually `http://localhost:8501`) 
 
 ---
 
-## 👨‍💻 Contributors
 
-- **Created by**: Aayush Tripathi (ECE Department, LNMIIT)
-- **Supervised by**: Dr. Nishant Gupta (Assistant Professor, LNMIIT)
