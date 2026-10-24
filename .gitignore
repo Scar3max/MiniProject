@@ -1,20 +1,130 @@
-# Large model files (GGUF weights)
+# ==============================================================================
+# Model Weights & Large Binary Assets
+# ==============================================================================
 *.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
 
-# Environment variables & secrets
+# ==============================================================================
+# Databases, WAL/Journal Files, Backups & Test DBs
+# ==============================================================================
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.bak
+test_*.db*
+verify_*.db*
+*.db.bak
+
+# ==============================================================================
+# Environment Variables, Secrets & Credentials
+# ==============================================================================
 .env
 .env.*
+.env.local
+!.env.example
 
-# Python caching & build files
+# ==============================================================================
+# Python Build Artifacts & Bytecode Cache
+# ==============================================================================
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/  
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# OS files
-.DS_Store
-Thumbs.db
+# ==============================================================================
+# Testing, Coverage & Type Checking
+# ==============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+
+# ==============================================================================
+# Node, Frontend & Vite Artifacts
+# ==============================================================================
+node_modules/
+frontend/node_modules/
+dist/
+dist-ssr/
+frontend/dist/
+.vite/
+frontend/.vite/
+.tmp/
+frontend/.tmp/
+*.tsbuildinfo
+frontend/tsconfig.app.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==============================================================================
+# Virtual Environments
+# ==============================================================================
 venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-.agents/
+# ==============================================================================
+# Logs & Diagnostic Dumps
+# ==============================================================================
+*.log
+logs/
+
+# ==============================================================================
+# Editor & IDE Directories
+# ==============================================================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# ==============================================================================
+# OS Generated Files
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini

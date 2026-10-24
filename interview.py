@@ -21,10 +21,11 @@ except Exception:
 from dotenv import load_dotenv
 import re
 import random
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from momentum_signal import compute_momentum
 from syllabus_service import SyllabusService
+import database
 
 # --- 1. Configuration ---
 load_dotenv()
@@ -64,6 +65,7 @@ You are a calm, professional, and natural-sounding technical interviewer.
 - You ask one short, focused question at a time (transition sentence optionally allowed).
 - You do not use overly formal phrases like "Therefore" or "Moreover".
 - You seamlessly adapt the conversation based on the candidate's performance.
+- NEVER evaluate or judge the candidate's answers. Ban praise and achievement verdicts ("You nailed that", "Well explained", "Spot on", "Good detail", "Solid grasp"). Move straight to digging deeper.
 
 **CRITICAL TONE RULE:**
 Your transitions must be natural and conversational. Do NOT use robotic phrases like any of: {forbidden}
@@ -94,6 +96,7 @@ Generate exactly ONE concise, domain-factual opening question that:
 - outputs ONLY the question (with greeting if used).
 
 **STRICT RULE:** The question MUST be factual and technical.
+Do NOT use any of these robotic phrases: {forbidden}
 Output: one concise, factual opening question only.
 """
 
@@ -150,6 +153,7 @@ FOLLOW-UP QUESTION GUIDELINES:
 - Your `strategic_question` must follow from the candidate's level, be factual, never repeat the same question,
   and shift to a related sub-concept if the user struggles.
 - **Important:** If the proposed `strategic_question` would repeat any of the items in Recent_Assistant_Questions, choose a different, non-repeating strategic_question.
+- **NON-REVEAL MANDATE:** If answer_type is FACTUALLY_INCORRECT, your `strategic_question` must NEVER state or reveal the correct answer as an established fact. Instead, ask a question that lets the candidate reconsider on their own or presents an open inquiry.
 
 OUTPUT STRICTLY THIS JSON:
 {{
@@ -192,50 +196,90 @@ Round to one decimal place. Output valid JSON and nothing else.
 PROMPT_GROQ_EXPERT = """
 {global_prompt}
 
-You are taking over the conversation. 
+You are taking over the conversation.
 Interview Domain: {domain}
 Full Conversation History:
 {history}
 
-Your Task:
-Generate the next single, human-like, professional follow-up. No preamble.
-
-CRITICAL CONSTRAINTS:
-- Do NOT use semicolons.
-- Do NOT use any of the forbidden robotic phrases: {forbidden}.
-- Do NOT use praise words (good, great, excellent, nice, fascinating, interesting) for weak, vague, incorrect, or hesitation answers.
-- You MAY output up to TWO short sentences:
-  1) a short transition phrase (3-10 words) — OPTIONAL but allowed,
-  2) a HIGH-QUALITY factual question (<=20 words).
-- The final output must be natural, conversational, and not lecturing.
-- Do NOT repeat the exact last 1-2 assistant questions.
-
-**QUESTION QUALITY RULES:**
-- Do NOT just echo words from the candidate's answer and ask "what does X do?"
-- INSTEAD, ask questions that test deeper understanding:
-  • Request concrete examples or real-world applications
-  • Ask about specific algorithms, techniques, or mechanisms
-  • Compare related concepts or explore trade-offs
-  • Correct misconceptions and ask for clarification
-  • Ask "how would you implement/apply [concept]?" not "what is [concept]?"
-- If candidate is vague, ask for specifics, not more vagueness
-
+Answer Classification: {answer_type_meta}
+Recent Openers Used (DO NOT reuse or rephrase these): {recent_openers}
 Strategic Hint: {hint}
 
-Output: exactly the transition (optional) plus the question (required), separated by a single space or newline.
+=== OPENER & QUESTION RULES (apply BEFORE writing your question) ===
+
+The opener is the short phrase BEFORE the question. Choose based on Answer Classification:
+
+- HESITATION_SIGNAL:
+  • Opener: short reassurance only, 6 words or fewer (e.g. "Take your time," / "No rush at all.").
+  • Question: one SIMPLIFIED clarifying question, 12 words or fewer. Make it easier than the last one.
+  • Do NOT reveal the answer. Do NOT acknowledge the hesitation explicitly.
+
+- KNOWLEDGE_GAP:
+  • Branch A — First poor signal on this subtopic (SUBTOPIC_STREAK: 1):
+    - STAY on the SAME subtopic. Do NOT change topics.
+    - Opener: non-judgmental transition phrase (<=6 words). Never use words like "struggle", "failed", "wrong", or "missed". Phrases like "Fair enough —" or "No worries at all —" are correct.
+    - Question: ask a SIMPLER, more foundational question on the SAME underlying concept (<=18 words). Add helpful context or framing to make it approachable.
+  • Branch B — Second consecutive poor signal on this subtopic (SUBTOPIC_STREAK >= 2):
+    - Opener: soft redirect referencing that this area isn't clicking right now (e.g. "Fair enough, let's step back —").
+    - Question: pivot to an accessible, foundational angle.
+
+- FACTUALLY_INCORRECT:
+  • CRITICAL NON-REVEAL RULE: NEVER state, confirm, or imply the correct answer as an established fact. Do NOT say "Since X is Y...", "Actually, X is Y...", or similar. Even if the hint mentions the correct term, you MUST NOT state or assert it as fact.
+  • FIRST, check the [MOMENTUM: ...] tag in Answer Classification:
+    - CASE 1: MOMENTUM is STRONG_NEGATIVE, MILD_NEGATIVE, or NEUTRAL (candidate is struggling or in a poor streak):
+      STRICTLY FORBIDDEN: Do NOT offer binary choices. Do NOT challenge them ("are you sure?"). Do NOT put a struggling candidate on the spot to self-correct.
+      REQUIRED: Ask a gentle reconsideration question exploring the mechanism without revealing the right answer (e.g. "Fair enough — if that were the case, how would concurrent updates avoid interfering with each other?").
+    - CASE 2: MOMENTUM is STRONG_POSITIVE or MILD_POSITIVE (candidate has been doing well overall, this is an isolated slip):
+      Give the candidate a direct chance to self-correct. Pick naturally between two forms (vary wording naturally):
+        (a) Direct challenge with NO answer embedded: e.g. "Are you sure about that?" / "Want to double-check that part?" / "Take another look at that — are you certain?"
+        (b) Forced binary choice presenting their term alongside the alternative as an open question, NOT as a verdict: e.g. "Is it [their term] or [alternative]?"
+        CRITICAL FOR FORM (b): Frame as a genuine question. NEVER state "the answer is X, but you said Y". NEVER assert which option is right. The candidate must confirm or correct.
+  • Opener: style C (neutral transition like "Fair enough —", "Alright then —", or none). Never use affirmations or praise.
+
+- EVASIVE_NON_ANSWER:
+  • Opener: a soft but firm redirect. Do NOT open a new topic. Steer directly back to the original question.
+  • Example opener style: "That said, my question was specifically about..."
+  • Do NOT sound impatient or repeat the same words verbatim from before.
+
+- EVASIVE_CHALLENGE:
+  • Opener: calm neutral transition. Do NOT apologize, do NOT justify why the question exists, do NOT match confrontation energy.
+  • Example: "Let's keep going —" followed by re-asking a concrete version of the question.
+
+- NORMAL (strong answer, score >= 8 — expert escalation):
+  • Move directly to the harder follow-up with minimal preamble.
+  • CRITICAL BAN ON EVALUATIVE LANGUAGE: Specific references must be used strictly to CONNECT to the next question, NEVER to evaluate or judge the candidate's answer.
+  • Absolutely NO praise, achievement verdicts, or performance commentary: ban "nailed", "crushed", "exactly right", "spot on", "well explained", "good detail", "solid start", "great", "excellent".
+  • WRONG: "You nailed that shared memory detail. How does the OS handle communication between separate processes?"
+  • RIGHT: "Since threads in the same process share memory, how does the OS handle communication between two completely separate processes?"
+  • The reference functions as a technical transition, not a verdict. Escalate to trade-offs, edge cases, implementation specifics, or comparisons.
+
+=== SPECIFICITY & NO-EVALUATION RULE ===
+Specific references to the candidate's answer MUST be used to CONNECT to the next question, NEVER to EVALUATE the answer just given.
+- Do NOT comment on performance (NO "You nailed X", "Well explained", "Spot on", "Good detail on X", "Solid grasp").
+- The specific reference functions as a transition or premise, not a verdict. Move immediately into the next question with no evaluative clause.
+- This applies to NORMAL/strong answers. (For HESITATION_SIGNAL or KNOWLEDGE_GAP on first attempt, a general reassuring/neutral opener is correct).
+
+=== OUTPUT FORMAT ===
+- Up to TWO short sentences: opener (optional) + question (required).
+- Do NOT use semicolons.
+- Do NOT use any of the forbidden robotic phrases: {forbidden}.
+- Do NOT repeat the exact last 1–2 assistant questions.
+- Do NOT reuse or closely paraphrase any opener in: {recent_openers}
+
+Output: exactly the opener (optional) plus the question (required), separated by a single space.
 """
 
 # [Call Type 4: SLM Triage Prompt] (The "Smart Triage" prompt)
-PROMPT_SLM_TRIAGE = """You are a professional technical interviewer for a campus SDE hiring interview, focused on {topic}. Ask thoughtful, adaptive follow-up questions based on the candidate's responses. If the candidate's answer is complete nonsense or a non-answer (like 'yes' or 'sure'), respond ONLY with the single token `[CONFIDENCE_LOW]`."""
+PROMPT_SLM_TRIAGE = """You are a professional technical interviewer for a campus SDE hiring interview, focused on {topic}. Ask thoughtful, adaptive follow-up questions based on the candidate's responses. Do NOT use robotic transition phrases like: {forbidden}. If the candidate's answer is complete nonsense or a non-answer (like 'yes' or 'sure'), respond ONLY with the single token `[CONFIDENCE_LOW]`."""
 
 # [Call Type 5: Groq Refiner]
 PROMPT_REFINER = """
 {global_prompt}
 
 You are an Editor-in-Chief for an AI interviewer. Create the perfect, concise follow-up.
-You will be given the candidate's last (flawed) answer, the Judge's analysis, and a Draft question from an SLM interviewer.
+You are given: the candidate's verbatim last answer, the Judge's one-line analysis, and a Draft question from the SLM triage model.
 
-Candidate's Last Answer:
+Candidate's Last Answer (verbatim):
 "{user_answer}"
 
 Judge's Analysis:
@@ -245,51 +289,75 @@ SLM Draft Question:
 "{slm_output}"
 
 Extra Meta: {extra_meta}
+Recent Openers Used (DO NOT reuse or rephrase these): {recent_openers}
 
-Your Task:
-1) If extra_meta indicates answer_type is HESITATION_SIGNAL:
-   - Do NOT praise.
-   - Start with a short acknowledgement like "No problem, take your time." (<=6 words).
-   - Then ask one very simple clarifying question (<=12 words).
-   - Output may be two sentences: acknowledgement sentence + clarifying question sentence.
-2) Otherwise:
-   - Start with one short (3–7 word) natural feedback phrase (no lecture).
-   - CRITICAL: Do NOT use praise words (good, great, excellent, nice, fascinating, interesting) if answer_type is VAGUE, FACTUALLY_INCORRECT, EVASIVE_NON_ANSWER, or EVASIVE_CHALLENGE.
-   - Then ask exactly one HIGH-QUALITY follow-up question (<=20 words).
-   - Output may be two sentences: feedback sentence + question sentence.
+=== OPENER RULES — choose based on [ANSWER_TYPE] in Extra Meta ===
 
-3) **CRITICAL - QUESTION QUALITY RULES:**
-   - Do NOT just pick words from the candidate's answer and ask "what does X do?" or "how does X work?"
-   - Do NOT ask vague questions like "tell me more" or "can you elaborate?"
-   - INSTEAD, ask questions that:
-     a) Request concrete examples: "Can you give an example of [concept] in practice?"
-     b) Test understanding: "How would you apply [concept] to [specific scenario]?"
-     c) Explore mechanisms: "What algorithm or technique is used for [task]?"
-     d) Compare concepts: "What's the difference between [A] and [B]?"
-     e) Correct misconceptions: If answer is wrong, gently correct and ask for clarification
-     f) Go deeper: Ask about trade-offs, challenges, or real-world applications
-   - If answer is VAGUE or INCORRECT, ask for specifics, examples, or mechanisms, not just "what does X mean?"
+Style palette (always available, mapped below by type):
+  A) Brief neutral acknowledgments: "Alright," / "Got it," / "Makes sense,"
+  B) Soft redirects: "Okay, building on that —" / "That touches on it —"
+  C) Neutral transitions: "Sure," / "Alright then," / "Fair enough —"
 
-4) Under all circumstances:
-   - Do NOT use semicolons.
-   - Do NOT use any forbidden robotic transitions: {forbidden}.
-   - Do NOT repeat any of the last 1–2 assistant questions.
-   - Output EXACTLY the feedback/acknowledgement + question (1-2 sentences), nothing else.
-5) Feedback rules:
-   - You MAY optionally skip the feedback phrase entirely (0–1 sentences). If you choose to include feedback, vary it widely and avoid repeating earlier patterns.
-   - When you choose to include feedback, rotate between:
-   - brief affirmations ("Alright", "Got it", "Makes sense")
-   - soft redirects ("Okay, let’s explore further", "Alright, another angle")
-   - neutral transitions ("Sure", "Alright then")
+- NORMAL (adequate answer):
+  • Use style A or B strictly as a connective bridge into the next question, NEVER to evaluate or judge the answer.
+  • CRITICAL BAN ON EVALUATIVE LANGUAGE: Absolutely NO evaluative praise or achievement-framed commentary. Ban words/phrases like "nailed", "crushed", "exactly right", "spot on", "well explained", "good detail", "solid start", "great", "excellent", or any phrasing that comments on how well the candidate did.
+  • WRONG: "You nailed that shared memory detail. How does the OS handle communication between separate processes?"
+  • RIGHT: "Since threads in the same process share memory, how does the OS handle communication between two completely separate processes?"
+  • The specific reference must function strictly as a transition or premise, not a verdict. Escalate difficulty immediately.
 
-Never repeat the same lead-in phrase twice in back-to-back turns.
-Avoid repeating the same phrases such as “That’s a good start”, “Right”, “Good”, “Okay”, or similar—vary your language.
+- VAGUE:
+  • Use style B (soft redirect).
+  • Acknowledge what was said, then name the SPECIFIC missing piece from "{user_answer}".
+  • Do NOT say "can you elaborate" or "tell me more".
+  • Example: "That touches on it — you mentioned [their term], but how does [specific missing mechanism] work?"
 
-Final output must be natural and brief.
+- FACTUALLY_INCORRECT:
+  • CRITICAL NON-REVEAL RULE: NEVER state, confirm, or imply the correct answer as an established fact. Even if the SLM draft or hint reveals the answer, you MUST STRIP IT OUT.
+  • FIRST, check the [MOMENTUM: ...] tag in Extra Meta:
+    - CASE 1: MOMENTUM is STRONG_NEGATIVE, MILD_NEGATIVE, or NEUTRAL (candidate is struggling or in a poor streak):
+      STRICTLY FORBIDDEN: Do NOT offer binary choices. Do NOT challenge them ("are you sure?"). Do NOT put a struggling candidate on the spot to self-correct.
+      REQUIRED: Ask a gentle reconsideration question exploring the mechanism without revealing the right answer (e.g. "Fair enough — if that were the case, how would the database handle concurrent transactions?").
+    - CASE 2: MOMENTUM is STRONG_POSITIVE or MILD_POSITIVE (candidate has been doing well overall, this is an isolated slip):
+      Give the candidate a direct chance to self-correct. Pick naturally between two forms (vary wording naturally):
+        (a) Direct challenge with NO answer embedded: e.g. "Are you sure about that?" / "Want to double-check that part?" / "Take another look at that — are you certain?"
+        (b) Forced binary choice presenting their term alongside the alternative as an open question, NOT as a verdict: e.g. "Is it [their term] or [alternative]?"
+        CRITICAL FOR FORM (b): Frame as a genuine question. NEVER state "the answer is X, but you said Y". NEVER assert which option is right. The candidate must confirm or correct.
+  • Opener: style C (neutral transition only, e.g. "Fair enough —", "Alright then —", or none). Never use affirmations (no "Got it", "Right", "Makes sense") which falsely imply correctness.
+
+- EVASIVE_NON_ANSWER:
+  • Use style B (soft redirect).
+  • Firm but polite, explicitly steer back to the original question rather than opening a new one.
+  • Example: "That said, what I was specifically asking was [paraphrase of original question]."
+
+- EVASIVE_CHALLENGE:
+  • Use style C (neutral transition).
+  • Calm and unbothered in tone — do not mirror confrontation, do not over-explain or justify why the question stands.
+  • Re-ask the question in a slightly different concrete form.
+
+=== SPECIFICITY & NO-EVALUATION RULE ===
+Specific references to the candidate's answer MUST be used to CONNECT to the next question, NEVER to EVALUATE the answer just given.
+- Do NOT comment on performance (NO "You nailed X", "Well explained", "Spot on", "Good detail on X", "Solid grasp").
+- The specific reference functions as a transition or technical premise, not a verdict.
+- Move immediately into the next question with no evaluative clause in between.
+
+=== QUESTION QUALITY RULES ===
+- Do NOT just pick words from the candidate's answer and ask "what does X do?" or "how does X work?"
+- DO ask about: concrete examples, implementation specifics, trade-offs, edge cases, mechanism comparisons.
+- Question must be <= 20 words.
+
+=== FORMAT ===
+- Up to TWO short sentences: opener (0–1 sentences) + question (1 sentence).
+- Do NOT use semicolons.
+- Do NOT use any forbidden robotic transitions: {forbidden}.
+- Do NOT repeat any of the last 1–2 assistant questions.
+- Do NOT reuse any opener in: {recent_openers}, and avoid close variants of them (same structure with synonyms swapped).
+- Output EXACTLY the opener (optional) plus the question (required), separated by a single space.
 """
 
 # [Call Type 6: Groq Pivot Generator]
 PROMPT_TOPIC_PIVOT = """
+{global_prompt}
+
 You are generating the FIRST question for a NEW topic: {topic}.
 
 Input summary:
@@ -298,24 +366,26 @@ Input summary:
 - Answer Type: {answer_type}
 - Judge Notes: {analysis_notes}
 - Recent Assistant Questions: {recent_questions_json}
+- Recent Openers Used (DO NOT reuse or rephrase these): {recent_openers}
 
 Task:
 1) Produce up to TWO short sentences:
-   - Sentence 1 (optional): a short, human transition phrase (3–10 words) that reflects tone.
+   - Sentence 1 (required for knowledge gaps or poor answers, optional otherwise): a conversational transition phrase (3–10 words) that bridges to the new topic. If the candidate had a knowledge gap or repeated poor answers, use a soft redirect style referencing that the previous area isn't clicking right now (e.g., "Fair enough, let's look at another angle.", "No worries, let's try a different direction.") rather than an abrupt flat question.
    - Sentence 2 (required): one factual theoretical interview level question about the new topic (<=20 words).
 2) Do NOT use semicolons.
 3) Do NOT use any forbidden robotic phrases: {forbidden}.
 4) Do NOT repeat any of the items listed in Recent_Assistant_Questions.
 5) Difficulty should depend on recent performance: easier if confused, moderate if average, deeper if confident.
-6) Use a wide range of synonyms for acknowledgements and transitions. Do not reuse any phrase more than once per 5 turns.
-7) The transition should connect naturally to the user’s last response while smoothly guiding the conversation toward the pivot question.
-8) do NOT use praise or positive adjectives (fascinating, great, good, interesting, nice, excellent, etc.) if answer type is NOT Normal.
-8) Output EXACTLY the transition and question (required) as 1-2 sentences.
+6) Use a wide range of synonyms for acknowledgements and transitions.
+7) The transition should connect naturally to the user's last response while smoothly guiding the conversation toward the pivot question.
+8) Do NOT use praise or positive adjectives (fascinating, great, good, interesting, nice, excellent, etc.) if answer type is NOT Normal.
+9) Do NOT reuse any opener in: {recent_openers}, and avoid close variants of them (same structure with synonyms swapped).
+10) Output EXACTLY the transition and question (required) as 1-2 sentences.
 
 Examples of valid output:
-"Alright, let's try something else. What is the main function of MAC protocols?"
+"Fair enough, let's look at another angle. What is the main function of MAC protocols?"
 or
-"Good. What is the role of antenna diversity in wireless systems?"
+"No worries, let's try a different direction. What is the role of antenna diversity in wireless systems?"
 
 Output only the transition+question text.
 """
@@ -335,8 +405,12 @@ class InterviewOrchestrator:
                Pivot logic requires 2 consecutive STRONG_NEGATIVE momentum detections
                (grace window), tracked by self.pivot_grace_counter.
     """
-    def __init__(self, domain):
+    def __init__(self, domain, candidate_id: Optional[int] = None, session_id: Optional[int] = None, db_path: Optional[str] = None):
         self.domain = domain
+        self.candidate_id = candidate_id
+        self.session_id = session_id
+        self.db_path = db_path
+        self.turn_count = 0
         self.hesitation_streak = 0
         self.vague_streak = 0  # Track consecutive poor answers
         self.conversation_history = []
@@ -355,6 +429,9 @@ class InterviewOrchestrator:
         # pivot grace counter: require N consecutive strong-negative momentum detections before forcing pivot
         self.pivot_grace_counter = 0
         self.PIVOT_GRACE_REQUIRED = 2  # require 2 consecutive weak turns to pivot
+
+        # Session-level opener deduplication (Change 5)
+        self.recent_openers: List[str] = []  # stores last 3 extracted opener phrases
 
         # 1. Configure Groq
         print(f"Configuring Groq with model: {GROQ_MODEL_NAME}")
@@ -425,9 +502,10 @@ class InterviewOrchestrator:
         """[Call Type 1] Generates the first L0 question using Groq."""
         print(f"\n...Calling Groq for L0 question (Topic: {self.current_topic})...")
 
+        forbidden_str = ", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         prompt = PROMPT_L0_GENERATOR.format(
-            global_prompt=GLOBAL_INTERVIEWER_PROMPT,
-            domain=self.domain
+            domain=self.domain,
+            forbidden=forbidden_str
         )
 
         response = self.groq_client.chat.completions.create(
@@ -438,7 +516,58 @@ class InterviewOrchestrator:
         l0_question = self._normalize_output(response.choices[0].message.content.strip())
         self.last_question = l0_question
         self.conversation_history.append({"role": "assistant", "content": l0_question})
+        self._track_opener(l0_question)
         return l0_question
+
+    def _persist_turn(
+        self,
+        question_text: str,
+        candidate_answer: str,
+        subtopic: Optional[str],
+        answer_classification: str,
+        score: float,
+        momentum_signal: Optional[str] = None,
+        score_reason: Optional[str] = None,
+        analysis_notes: Optional[str] = None
+    ) -> Optional[int]:
+        """Persists turn data to SQLite immediately if session_id is active."""
+        if self.session_id is not None:
+            self.turn_count += 1
+            justification = database.format_judge_justification(score_reason, analysis_notes)
+            try:
+                turn_id = database.record_turn(
+                    session_id=self.session_id,
+                    turn_number=self.turn_count,
+                    subtopic=subtopic,
+                    question_text=question_text,
+                    candidate_answer=candidate_answer,
+                    answer_classification=answer_classification,
+                    score=float(score) if score is not None else 0.0,
+                    momentum_signal=momentum_signal,
+                    judge_justification=justification,
+                    db_path=self.db_path
+                )
+                print(f"...💾 Persisted turn #{self.turn_count} (turn_id={turn_id}) to DB.")
+                return turn_id
+            except Exception as e:
+                print(f"...⚠️ Database record_turn failed: {e}")
+        return None
+
+    def end_session(self, final_summary: Optional[str] = None, overall_score: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        """Closes the current session row and recomputes candidate aggregates."""
+        if self.session_id is not None:
+            try:
+                res = database.finish_session(
+                    session_id=self.session_id,
+                    final_summary=final_summary,
+                    overall_score=overall_score,
+                    db_path=self.db_path
+                )
+                print(f"...🏁 Session #{self.session_id} finished in DB. Candidate aggregates updated.")
+                return res
+            except Exception as e:
+                print(f"...⚠️ Database finish_session failed: {e}")
+        return None
 
     def _normalize_output(self, text: str) -> str:
         """
@@ -495,6 +624,34 @@ class InterviewOrchestrator:
         final = re.sub(r'[\s\.,;:]+$', '', final)
 
         return final
+
+    def _extract_opener(self, text: str) -> str:
+        """
+        Extract the opener clause (the leading transition phrase before the question).
+        Heuristic: take the leading clause before the question up to the first comma, period,
+        exclamation mark, or em-dash. If the message starts directly with the question, return "".
+        """
+        if not text:
+            return ""
+        qmark_idx = text.find('?')
+        pre_q = text[:qmark_idx] if qmark_idx != -1 else text
+        m = re.match(r'^([^?]{2,60}?[,.!—])\s+', pre_q)
+        if m:
+            candidate = m.group(1).strip()
+            if len(candidate.split()) <= 12 and '?' not in candidate:
+                return candidate
+        return ""
+
+    def _track_opener(self, final_text: str) -> None:
+        """
+        Extract the opener from the final output and store it in self.recent_openers.
+        Keeps only the last 3 openers.
+        """
+        opener = self._extract_opener(final_text)
+        if opener:
+            self.recent_openers.append(opener)
+            if len(self.recent_openers) > 3:
+                self.recent_openers = self.recent_openers[-3:]
 
     def _get_recent_assistant_questions(self, n: int = 2) -> List[str]:
         """
@@ -601,7 +758,11 @@ class InterviewOrchestrator:
 
         print("...Calling local SLM (Triage) to *think*...")
 
-        system_content = PROMPT_SLM_TRIAGE.format(topic=self.current_topic)
+        forbidden_str = ", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
+        system_content = PROMPT_SLM_TRIAGE.format(
+            topic=self.current_topic,
+            forbidden=forbidden_str
+        )
 
         messages = []
         messages.append({"role": "system", "content": system_content})
@@ -653,19 +814,26 @@ class InterviewOrchestrator:
             print(f"...SLM FAILED (Exception): {e}")
             return None
 
-    def _get_groq_expert_question(self, hint: str):
+    def _get_groq_expert_question(self, hint: str, answer_type: str = "NORMAL", poor_streak: int = 1, momentum: str = "NEUTRAL"):
         """[Call Type 3] Calls Groq for an "Expert" or "Fallback" question."""
-        print(f"...Calling Groq (Expert/Fallback). Hint: {hint}...")
+        print(f"...Calling Groq (Expert/Fallback). hint={hint!r}, answer_type={answer_type!r}, poor_streak={poor_streak}, momentum={momentum!r}")
 
         history_str = ""
         for turn in self.conversation_history:
             role = "Interviewer" if turn['role'] == 'assistant' else "Candidate"
             history_str += f"{role}: {turn['content']}\n"
 
+        answer_type_meta = f"[ANSWER_TYPE: {answer_type}] [SUBTOPIC_STREAK: {poor_streak}] [MOMENTUM: {momentum}]"
+        recent_openers_str = json.dumps(self.recent_openers) if self.recent_openers else "[]"
+
         prompt = PROMPT_GROQ_EXPERT.format(
-            global_prompt=GLOBAL_INTERVIEWER_PROMPT,
+            global_prompt=GLOBAL_INTERVIEWER_PROMPT.format(
+                forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
+            ),
             domain=self.domain,
             history=history_str,
+            answer_type_meta=answer_type_meta,
+            recent_openers=recent_openers_str,
             hint=hint,
             forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         )
@@ -676,27 +844,30 @@ class InterviewOrchestrator:
         )
         return response.choices[0].message.content.strip()
 
-    def _get_groq_refinement(self, user_answer: str, analysis_notes: str, slm_output: str, hint: str, answer_type: str = None):
-        """[Call Type 5] Calls Groq "Editor" to create the final, concise response."""
-        print(f"...Sending all context to Groq (Editor) for final question...")
+    def _get_groq_refinement(self, user_answer: str, analysis_notes: str, slm_output: str, hint: str, answer_type: str = None, momentum: str = "NEUTRAL"):
+        """[Call Type 5] Calls Groq "Editor" to create the final, concise response. momentum={momentum!r}..."""
 
         # Compose extra_meta from explicit answer_type (if provided).
         if answer_type:
-            extra_meta = f"[ANSWER_TYPE: {answer_type}]"
+            extra_meta = f"[ANSWER_TYPE: {answer_type}] [MOMENTUM: {momentum}]"
         else:
-            # Fallback: infer neutral
-            extra_meta = "[ANSWER_TYPE: NORMAL]"
+            extra_meta = f"[ANSWER_TYPE: NORMAL] [MOMENTUM: {momentum}]"
 
         # Provide recent assistant questions to the refiner so it doesn't repeat.
         recent_qs = self._get_recent_assistant_questions(2)
         extra_meta = extra_meta + f" [RECENT_ASSISTANT_QS: {json.dumps(recent_qs)}]"
 
+        recent_openers_str = json.dumps(self.recent_openers) if self.recent_openers else "[]"
+
         prompt = PROMPT_REFINER.format(
-            global_prompt=GLOBAL_INTERVIEWER_PROMPT,
+            global_prompt=GLOBAL_INTERVIEWER_PROMPT.format(
+                forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
+            ),
             user_answer=user_answer,
             analysis_notes=analysis_notes,
             slm_output=slm_output,
             extra_meta=extra_meta,
+            recent_openers=recent_openers_str,
             forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         )
 
@@ -712,15 +883,19 @@ class InterviewOrchestrator:
 
         recent_qs = self._get_recent_assistant_questions(2)
         recent_json = json.dumps(recent_qs)
+        recent_openers_str = json.dumps(self.recent_openers) if self.recent_openers else "[]"
 
         prompt = PROMPT_TOPIC_PIVOT.format(
-            global_prompt=GLOBAL_INTERVIEWER_PROMPT,
+            global_prompt=GLOBAL_INTERVIEWER_PROMPT.format(
+                forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
+            ),
             topic=new_topic,
             user_answer=user_answer,
             score=score,
             answer_type=answer_type,
             analysis_notes=analysis_notes,
             recent_questions_json=recent_json,
+            recent_openers=recent_openers_str,
             forbidden=", ".join([f'"{p}"' for p in FORBIDDEN_TRANSITIONS])
         )
 
@@ -750,8 +925,12 @@ class InterviewOrchestrator:
         
         self.conversation_history.append({"role": "user", "content": user_answer})
         
+        # Capture question and subtopic being answered this turn before state updates
+        turn_question_text = self.last_question
+        turn_subtopic = self.current_topic
+
         # Concurrent evaluation
-        analysis, score_result = self._evaluate_answer_parallel(self.last_question, user_answer)
+        analysis, score_result = self._evaluate_answer_parallel(turn_question_text, user_answer)
 
         # Extract classification and notes from analyzer
         answer_type = analysis.get("answer_type", "Normal")
@@ -792,52 +971,71 @@ class InterviewOrchestrator:
         else:
             self.hesitation_streak = 0
 
-        # Track consecutive vague/incorrect/evasive/hesitation answers (MORE AGGRESSIVE)
-        if answer_type in ("VAGUE", "FACTUALLY_INCORRECT", "EVASIVE_NON_ANSWER", "EVASIVE_CHALLENGE", "HESITATION_SIGNAL"):
+        # Track consecutive poor signals: VAGUE, FACTUALLY_INCORRECT, EVASIVE_NON_ANSWER, EVASIVE_CHALLENGE, HESITATION_SIGNAL, KNOWLEDGE_GAP
+        if answer_type in ("VAGUE", "FACTUALLY_INCORRECT", "EVASIVE_NON_ANSWER", "EVASIVE_CHALLENGE", "HESITATION_SIGNAL", "KNOWLEDGE_GAP"):
             self.vague_streak += 1
             print(f"...Poor answer streak: {self.vague_streak} (type: {answer_type})")
         else:
             self.vague_streak = 0
-        
-        # AUTO-CONVERT 2 consecutive poor answers into KNOWLEDGE_GAP (faster pivot on gibberish)
+
+        mercy_pivot_triggered = False
+
+        # AUTO-CONVERT 2 consecutive poor answers into Mercy Pivot
         if self.vague_streak >= 2:
-            answer_type = "KNOWLEDGE_GAP"
-            analysis["answer_type"] = "KNOWLEDGE_GAP"
-            print(f"...🚨 MERCY PIVOT: {self.vague_streak} consecutive poor answers → treating as KNOWLEDGE_GAP.")
+            mercy_pivot_triggered = True
+            topic_complete_flag = True
+            print(f"...🚨 MERCY PIVOT: {self.vague_streak} consecutive poor answers on '{self.current_topic}' → pivoting to next topic.")
+            hint = f"Candidate is struggling with '{self.current_topic}' ({self.vague_streak} consecutive poor/gap answers). Pivot smoothly to the next topic: '{self.topic_syllabus[0] if self.topic_syllabus else 'a new area'}'."
+            score = 0.0
+            momentum_causes_forced_pivot = False
             self.vague_streak = 0  # Reset
             self.hesitation_streak = 0  # Also reset hesitation
 
-        # AUTO-CONVERT 2 consecutive hesitations into KNOWLEDGE_GAP (user requested) - REDUNDANT NOW but kept for compatibility
-        if self.hesitation_streak >= 2 and answer_type == "HESITATION_SIGNAL":
-            answer_type = "KNOWLEDGE_GAP"
-            analysis["answer_type"] = "KNOWLEDGE_GAP"
-            print("...🚨 MERCY PIVOT: Multiple consecutive hesitations → treating as KNOWLEDGE_GAP.")
+        # AUTO-CONVERT 2 consecutive hesitations into Mercy Pivot
+        elif self.hesitation_streak >= 2:
+            mercy_pivot_triggered = True
+            topic_complete_flag = True
+            print(f"...🚨 MERCY PIVOT: Multiple consecutive hesitations → pivoting to next topic.")
+            hint = f"Candidate hesitating repeatedly on '{self.current_topic}'. Pivot smoothly to the next topic: '{self.topic_syllabus[0] if self.topic_syllabus else 'a new area'}'."
+            score = 0.0
+            momentum_causes_forced_pivot = False
+            self.vague_streak = 0
+            self.hesitation_streak = 0
 
-        analysis_notes = analysis.get("analysis_notes", "")
+        analysis_notes = analysis.get("analysis_notes", "") if isinstance(analysis, dict) else ""
+        score_reason = score_result.get("score_reason", "") if isinstance(score_result, dict) else ""
         hint = analysis.get("strategic_question", "Ask a logical follow-up.")
-        # ignore analyzer's topic_is_complete for orchestration decisions (user requested)
-        topic_complete_flag = False
+        topic_complete_flag = mercy_pivot_triggered
 
         # ------------- Priority 1: Safety / Immediate Termination -------------
         if analysis.get("terminate_interview", False):
             reason = analysis.get("reason_for_termination", "Safety violation or candidate refusal.")
             print(f"\nTERMINATING INTERVIEW. Reason: {reason}")
+            self._persist_turn(
+                question_text=turn_question_text,
+                candidate_answer=user_answer,
+                subtopic=turn_subtopic,
+                answer_classification=analysis.get("answer_type", "Violation"),
+                score=0.0,
+                momentum_signal=None,
+                score_reason=score_reason,
+                analysis_notes=analysis_notes or reason
+            )
             return {"status": "TERMINATED", "analysis": analysis}
 
-        # ------------- Priority 2: Knowledge Gap (instant mercy pivot) -------------
-        # If user explicitly says "I don't know" (KNOWLEDGE_GAP) — immediate mercy pivot (ignore parallel score)
-        if answer_type == "KNOWLEDGE_GAP":
-            print(f"...User 'KNOWLEDGE_GAP' detected. Forcing a 'Mercy Pivot' (ignoring parallel score).")
-            topic_complete_flag = True
-            hint = f"Candidate is stuck on '{self.current_topic}'. Ask a new L0 question for the next topic: '{self.topic_syllabus[0] if self.topic_syllabus else 'a new area'}'."
-            # Force score to 0.0
+        # ------------- Priority 2: Knowledge Gap handling -------------
+        # On FIRST Knowledge Gap (streak=1), do NOT pivot! Simplify on the same subtopic.
+        if answer_type == "KNOWLEDGE_GAP" and not mercy_pivot_triggered:
+            print(f"...First KNOWLEDGE_GAP on '{self.current_topic}' (streak=1). Simplifying on SAME subtopic (no pivot yet).")
+            topic_complete_flag = False
+            hint = (f"Candidate indicated a knowledge gap on the current question in '{self.current_topic}'. "
+                    f"Do NOT change topic. Ask a SIMPLER, more foundational question on the SAME subtopic '{self.current_topic}' "
+                    f"with approachable context and framing.")
             score = 0.0
-            # defensive: prevent momentum forced pivot this round
             momentum_causes_forced_pivot = False
-        else:
+        elif not mercy_pivot_triggered:
             # ------------- Extract the separate parallel score -------------
-            score = score_result.get("score", None)
-            score_reason = score_result.get("score_reason", "")
+            score = score_result.get("score", None) if isinstance(score_result, dict) else None
 
             # If scorer failed, do NOT fallback to analyzer numeric score.
             if score is None:
@@ -860,6 +1058,12 @@ class InterviewOrchestrator:
                 # we have a valid scorer value
                 pass
 
+        # Trajectory entering this turn (candidate's baseline momentum before current answer)
+        prior_momentum_info = compute_momentum(self.recent_scores,
+                                               normalization_divisor=DEFAULT_MOMENTUM_NORM_DIV,
+                                               weight=DEFAULT_MOMENTUM_WEIGHT)
+        prior_momentum_signal = prior_momentum_info['signal']
+
         # Maintain recent scores for momentum and density (oldest...newest)
         try:
             self.recent_scores.append(float(score))
@@ -877,9 +1081,18 @@ class InterviewOrchestrator:
         momentum_norm = momentum_info['norm']
         momentum_weighted = momentum_info['weighted']
 
+        # For FACTUALLY_INCORRECT: if candidate was trending positive entering this question,
+        # it is an isolated slip (STRONG_POSITIVE / MILD_POSITIVE).
+        if prior_momentum_signal in ("STRONG_POSITIVE", "MILD_POSITIVE"):
+            effective_momentum = prior_momentum_signal
+        elif prior_momentum_signal in ("STRONG_NEGATIVE", "MILD_NEGATIVE") or momentum_signal in ("STRONG_NEGATIVE", "MILD_NEGATIVE"):
+            effective_momentum = "STRONG_NEGATIVE" if "STRONG" in (prior_momentum_signal, momentum_signal) else "MILD_NEGATIVE"
+        else:
+            effective_momentum = momentum_signal
+
         # Debug output for momentum
         print(f"...[MOMENTUM DEBUG] raw={momentum_info['raw']:.3f}, norm={momentum_norm:.3f}, "
-              f"weighted={momentum_weighted:.3f}, signal={momentum_signal}")
+              f"weighted={momentum_weighted:.3f}, signal={momentum_signal}, effective_momentum={effective_momentum}")
 
         # Update low_score_streak for logging/observability (use scorer-derived score)
         if float(score) <= 1.5:
@@ -920,19 +1133,27 @@ class InterviewOrchestrator:
         if answer_type == "EVASIVE_NON_ANSWER":
             print(f"...User is stalling. Calling Groq (Expert) to be firm.")
             hint = f"The candidate is stalling ('{user_answer}'). Politely but firmly, re-ask the last question: '{self.last_question}'"
-            next_question = self._get_groq_expert_question(hint=hint)
+            next_question = self._get_groq_expert_question(hint=hint, answer_type=answer_type, poor_streak=self.vague_streak, momentum=effective_momentum)
 
         elif answer_type == "EVASIVE_CHALLENGE":
             print(f"...User is challenging. Calling Groq (Expert) to restate role.")
             hint = f"The candidate is challenging ('{user_answer}'). Politely restate your role as the interviewer and then re-ask the last question: '{self.last_question}'"
-            next_question = self._get_groq_expert_question(hint=hint)
+            next_question = self._get_groq_expert_question(hint=hint, answer_type=answer_type, poor_streak=self.vague_streak, momentum=effective_momentum)
 
         # ---------- BEGIN: PRIORITIZED HESITATION / KNOWLEDGE / PIVOT GUARDS ----------
         # Optional: Hesitation shortcut — prefer a short clarifying question and skip pivots
         if answer_type == "HESITATION_SIGNAL" and next_question is None and not topic_complete_flag:
             print("...Answer marked HESITATION_SIGNAL. Using Groq Expert to produce a short clarifying question.")
             hint = f"Candidate hesitated on '{self.current_topic}'. Ask a short, simple clarifying question (<=12 words)."
-            next_question = self._get_groq_expert_question(hint=hint)
+            next_question = self._get_groq_expert_question(hint=hint, answer_type=answer_type, poor_streak=self.hesitation_streak, momentum=effective_momentum)
+
+        # First Knowledge Gap on subtopic: simplify on SAME subtopic, DO NOT pivot
+        if answer_type == "KNOWLEDGE_GAP" and next_question is None and not topic_complete_flag:
+            print(f"...Answer marked KNOWLEDGE_GAP (first attempt on '{self.current_topic}'). Calling Groq Expert to simplify on the same subtopic.")
+            hint = (f"Candidate has a knowledge gap on the current question in '{self.current_topic}'. "
+                    f"Do NOT change topic. Ask a SIMPLER, more foundational question on the SAME subtopic '{self.current_topic}' "
+                    f"with approachable framing and context.")
+            next_question = self._get_groq_expert_question(hint=hint, answer_type=answer_type, poor_streak=1, momentum=effective_momentum)
 
         # If Groq Expert already produced a next_question (e.g., from EVASIVE_* or HESITATION),
         # we prefer that expert-crafted question and skip pivoting logic this turn.
@@ -1001,13 +1222,21 @@ class InterviewOrchestrator:
 
         # 7. Topic Pivot handling
         if topic_complete_flag:
-            # 🚨 NEW RULE:
-            # If pivot was caused by KNOWLEDGE_GAP → bypass min-2 requirement
-            if analysis.get("answer_type") != "KNOWLEDGE_GAP":
-                # Old rule still applies for all other pivot types
+            # If pivot was caused by mercy pivot (2 consecutive poor answers/gaps), bypass min-2 check
+            if not mercy_pivot_triggered:
                 if self.questions_in_current_topic < 2:
                     print("...Pivot blocked: fewer than 2 questions asked in this topic. Continuing within the same topic.")
                     topic_complete_flag = False
+                    self._persist_turn(
+                        question_text=turn_question_text,
+                        candidate_answer=user_answer,
+                        subtopic=turn_subtopic,
+                        answer_classification=answer_type,
+                        score=float(score) if score is not None else 0.0,
+                        momentum_signal=momentum_signal,
+                        score_reason=score_reason,
+                        analysis_notes=analysis_notes
+                    )
                     return {
                         "status": "CONTINUE",
                         "next_question": self.last_question,
@@ -1021,6 +1250,16 @@ class InterviewOrchestrator:
 
             if not self.topic_syllabus:
                 print("...Syllabus complete. Ending interview.")
+                self._persist_turn(
+                    question_text=turn_question_text,
+                    candidate_answer=user_answer,
+                    subtopic=turn_subtopic,
+                    answer_classification=answer_type,
+                    score=float(score) if score is not None else 0.0,
+                    momentum_signal=momentum_signal,
+                    score_reason=score_reason,
+                    analysis_notes=analysis_notes
+                )
                 return {"status": "TERMINATED", "analysis": analysis, "reason": "SyllabusFinished"}
 
             self.current_topic = self.topic_syllabus.pop(0)
@@ -1040,11 +1279,10 @@ class InterviewOrchestrator:
             # NEW: Expert escalation for truly strong NORMAL answers (skip SLM triage, ask deeper expert Q)
             if answer_type == "NORMAL" and float(score) >= DEEP_ESCALATION_THRESHOLD:
                 print(f"...Strong NORMAL answer detected (score={score}). Escalating to expert-level follow-up.")
-                # Provide a hint to the Groq Expert to ask a deeper, expert-level follow-up. Avoid praise and robotic transitions.
                 expert_hint = ("Candidate appears well-read. Ask a deeper, expert-level technical follow-up. "
                                "You may include a short formula, a comparison, or ask for trade-offs. "
                                "Do NOT use praise words.")
-                next_question = self._get_groq_expert_question(hint=expert_hint)
+                next_question = self._get_groq_expert_question(hint=expert_hint, answer_type="NORMAL", poor_streak=0, momentum=effective_momentum)
 
             else:
                 print(f"...Score ({score}) routed to Fusion Pass (SLM -> Groq Editor).")
@@ -1053,7 +1291,7 @@ class InterviewOrchestrator:
                 if slm_draft_question is None or slm_draft_question == "[CONFIDENCE_LOW]":
                     print("...SLM failed or escalated. Calling Groq (Fallback).")
                     fallback_hint = f"Candidate's score was {score} and the SLM (TFailure) failed. Use this hint: {hint}"
-                    next_question = self._get_groq_expert_question(hint=fallback_hint)
+                    next_question = self._get_groq_expert_question(hint=fallback_hint, answer_type=answer_type, poor_streak=self.vague_streak, momentum=effective_momentum)
                 else:
                     # pass answer_type to refiner via extra_meta so it can adapt wording
                     next_question = self._get_groq_refinement(
@@ -1061,7 +1299,8 @@ class InterviewOrchestrator:
                         analysis_notes=analysis_notes,
                         slm_output=slm_draft_question,
                         hint=hint,
-                        answer_type=answer_type
+                        answer_type=answer_type,
+                        momentum=effective_momentum
                     )
 
         normalized_question = self._normalize_output(next_question)
@@ -1069,11 +1308,24 @@ class InterviewOrchestrator:
         self.conversation_history.append({"role": "assistant", "content": normalized_question})
         # Count this question toward topic depth
         self.questions_in_current_topic += 1
+        # Session-level opener deduplication: track the opener phrase
+        self._track_opener(normalized_question)
 
 
         # Attach the latest score into the analysis return for user debugging
         analysis_return = analysis.copy()
         analysis_return['score_used'] = round(float(score), 1) if isinstance(score, (int, float)) else score
+
+        self._persist_turn(
+            question_text=turn_question_text,
+            candidate_answer=user_answer,
+            subtopic=turn_subtopic,
+            answer_classification=answer_type,
+            score=float(score) if score is not None else 0.0,
+            momentum_signal=momentum_signal,
+            score_reason=score_reason,
+            analysis_notes=analysis_notes
+        )
 
         return {"status": "CONTINUE", "next_question": normalized_question, "analysis": analysis_return}
 

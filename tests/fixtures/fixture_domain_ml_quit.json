@@ -1,0 +1,39 @@
+{
+  "domain": "Machine Learning",
+  "candidate_identifier": "test-replay-ml-quit",
+  "syllabus": [
+    "Model Evaluation & Metrics",
+    "Overfitting & Regularization"
+  ],
+  "opening_question": "Explain the difference between precision and recall, and when would you prioritize recall over precision?",
+  "turns": [
+    {
+      "turn_number": 1,
+      "candidate_answer": "Precision measures true positives over all predicted positives, while recall measures true positives over all actual positives. For medical diagnosis or fraud detection, minimizing false negatives means optimizing for high recall.",
+      "analysis": {
+        "answer_quality_score": 8.0,
+        "score_used": 8.0,
+        "answer_type": "NORMAL",
+        "justification": "Accurate definitions and practical business application context.",
+        "technical_depth": "Proficient",
+        "subtopic": "Machine Learning"
+      },
+      "next_question": "How does the F1 score balance precision and recall, and why use the harmonic mean instead of arithmetic mean?",
+      "expected_status": "CONTINUE"
+    },
+    {
+      "turn_number": 2,
+      "candidate_answer": "quit",
+      "analysis": null,
+      "next_question": null,
+      "expected_status": "TERMINATED",
+      "expected_reason": "UserQuit",
+      "expected_message": "Thank you for participating! The interview has ended. 🎉"
+    }
+  ],
+  "expected_final": {
+    "total_turns": 1,
+    "overall_score": 8.0,
+    "dominant_type": "Normal"
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "072e4286b407220764165e347e9894b28890c3fda38fe3d2719712dcc7a29752": {
+    "call_type": "groq",
+    "content": "Great, to start, how does Python's garbage collector manage memory using reference counting?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "371791bfcdc43c9148e33bcb1d6150dc255d20c239aed6622a15f46740e81e57": {
+    "call_type": "groq",
+    "content": "{\n  \"score\": 0.0,\n  \"score_reason\": \"The answer discusses list vs tuple mutability, which is completely irrelevant to Python's garbage collection and reference counting mechanism.\"\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "ab19af1a064ba1a27ac5651b0f69b98271bd21d19598924bebd0c7f26d7cd54c": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"Candidate described the mutability difference between lists and tuples instead of explaining garbage collection.\",\n  \"answer_quality_score\": 1.0,\n  \"answer_type\": \"FACTUALLY_INCORRECT\",\n  \"analysis_notes\": \"The answer is irrelevant to the question about reference counting, addressing a different Python concept instead of memory management.\",\n  \"strategic_question\": \"Can you clarify what you meant by that, and perhaps connect it to how Python determines when an object is no longer needed in memory?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "bf6a45ae010ddb613f41dad384118e0430da0a3efc37a89dccc45626a51664f5": {
+    "call_type": "slm",
+    "content": "You mentioned tuples are immutable. Can you explain how this immutability impacts memory usage compared to lists?",
+    "model": "slm_gguf"
+  },
+  "dcccbc49bda24937f87550e0fcdc4a6f56f6c105b0893b709a66687c986beb39": {
+    "call_type": "groq",
+    "content": "Fair enough. Since you focused on tuples, could you actually explain how reference counting works?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "692742be2108c33cfdb5f4ecf01f96502153e2dac8284d746240ddd9c686a832": {
+    "call_type": "groq",
+    "content": "{\n  \"score\": 3.5,\n  \"score_reason\": \"The answer correctly identifies the mechanism but is extremely vague, failing to explain the actual process of incrementing/decrementing counters or how the collector handles cycles, which constitutes a significant omission for a technical explanation.\"\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "0884884e02a697bf424bcb081b92e968786b6993ca4a0a870f4e6a5fd806e280": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"Candidate stated that Python uses reference counting and a cyclic GC.\",\n  \"answer_quality_score\": 8.0,\n  \"answer_type\": \"Normal\",\n  \"analysis_notes\": \"The answer is factually correct and directly addresses the mechanism, though it briefly mentions the cyclic GC alongside reference counting.\",\n  \"strategic_question\": \"What happens to an object's memory immediately when its reference count drops to zero?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "80aedcb5d7cd3d5cbc9d3c7ca22ace86d0b2a99e29472084908aacd102f39fbf": {
+    "call_type": "slm",
+    "content": "Understood. Can you give an example of a scenario where the cyclic collector is needed?",
+    "model": "slm_gguf"
+  },
+  "87bc3a3035e3992dc7cec6c9aec596bb6f108de3f9ac208973cc4d9d9455cb85": {
+    "call_type": "groq",
+    "content": "Got it. What happens to an object's memory immediately when its reference count drops to zero?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "30d55712cb71a93fa2abc05b0ddd6fc287cdf2d63eb303db384c88bd7251523d": {
+    "call_type": "groq",
+    "content": "{\n  \"score\": 0.0,\n  \"score_reason\": \"The answer discusses Python decorators, which is completely unrelated to the question about memory management and reference counting, indicating a total knowledge gap or mismatch.\"\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "4726e2f003893ca93a18c77af57289d8f7062a45d0569cb20070de3187b2d28e": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"The candidate provided a definition of a decorator instead of answering the question about reference counting and memory deallocation.\",\n  \"answer_quality_score\": 1.0,\n  \"answer_type\": \"Factually_Incorrect\",\n  \"analysis_notes\": \"The answer is completely irrelevant to the question asked regarding memory management and mistakenly defines a programmer concept (decorator) rather than an object lifecycle event.\",\n  \"strategic_question\": \"Notice that you defined a decorator. Can you refocus on the original topic and describe the specific function an interpreter calls when an object becomes unreachable?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "de438f65b878dc2899a57ae5682651584d2cd6b7af643d3b31d9f00e4d3dfddc": {
+    "call_type": "slm",
+    "content": "[CONFIDENCE_LOW]",
+    "model": "slm_gguf"
+  },
+  "efa21ea0dfeea95c752b03c97d8a52988558cd5c2858eff13f16de513bb6a45a": {
+    "call_type": "groq",
+    "content": "No worries at all. When an object becomes unreachable, what specific function handles its cleanup?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "c61cfcfc1f939ad70cbd95c980157602c3f811ed3164f40bed128d7901e902ba": {
+    "call_type": "groq",
+    "content": "Great, to start, simply explain what feature scaling is and why it improves model convergence.",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "c4e141c295af5debed929d6110d34bf280a43540d5767a247062f4556be11578": {
+    "call_type": "groq",
+    "content": "{\n  \"score\": 0.0,\n  \"score_reason\": \"The answer defines supervised and unsupervised learning, which is completely irrelevant to the question about feature scaling and model convergence.\"\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "cdec41023378b7b942ae30422f868d2f3f39602253bb2f2f883af1f1773804a2": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"Candidate described the difference between supervised and unsupervised learning.\",\n  \"answer_quality_score\": 0.5,\n  \"answer_type\": \"Factually_Incorrect\",\n  \"analysis_notes\": \"The answer is confidently stated but fails to address the specific topic of feature scaling, instead providing a definition for supervised vs. unsupervised learning.\",\n  \"strategic_question\": \"Could you clarify if you are referring to data pre-processing techniques or the fundamental distinction between learning paradigms in that response?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "3fb23d637b9659a48e46c25af2f7cb7d1a3e8230ac8664b1dc67e4def1f0253d": {
+    "call_type": "slm",
+    "content": "Actually, that's the difference between supervised and unsupervised learning. Could you now describe how feature scaling helps in training a model?",
+    "model": "slm_gguf"
+  },
+  "9960778d77814a46195bf6ec38dafeb6b1fc7969c03d2514bcc76d339920d11b": {
+    "call_type": "groq",
+    "content": "Fair enough. Were you trying to answer a different question entirely?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "5f9107b844f7efcf9be424b87e7e138adaf356365478b0e2adf35c66ca9cb78b": {
+    "call_type": "groq",
+    "content": "Alright, let's start. What is the fundamental resource that a context switch primarily preserves when migrating execution between processes?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "cb2360376829c93cbb1957da0b9bc02c15741417e9bd194893b3933ea9d21a82": {
+    "call_type": "groq",
+    "content": "{\n  \"score\": 5.5,\n  \"score_reason\": \"The answer correctly identifies the isolation of address spaces but vague on the specific preservation of CPU registers and program counter, relying more on contrast than direct definition.\"\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "db1ee59d1731bdb6bc48e03a23d99b71e0c191f0845a2e2b2d4eb81bb13b2fbe": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"Answered a question about inter-process memory isolation instead of context switch preservation mechanics.\",\n  \"answer_quality_score\": 1.0,\n  \"answer_type\": \"Factually_Incorrect\",\n  \"analysis_notes\": \"The candidate failed to answer the specific question about context switching, instead providing information on memory address spaces which is not the primary resource preserved during a context switch (which refers to CPU state), marking it as factually incorrect relative to the prompt.\",\n  \"strategic_question\": \"If I step back from memory management, what specific hardware registers are you talking about that need to be swapped when we switch from Process A to Process B?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "d22f67f9e22a6017c14cdd875caf0c93bd323f134e7328464a3f242cd50d694c": {
+    "call_type": "slm",
+    "content": "Actually, a context switch focuses on the CPU state, not the memory layout. Could you tell me what specific CPU information is saved during a context switch?",
+    "model": "slm_gguf"
+  },
+  "91d019e935dbc9ee53f8d0f3c212680bffb581640d3380bb4c0842b0b4623ca0": {
+    "call_type": "groq",
+    "content": "Fair enough, but that sounds like memory management. What actually gets saved for the CPU?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "862f0d4ed31fbb6437c9dd8faba3158af5b063d29ed39c9dd735ef54b8075ebe": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"Candidate mistakenly attributes virtual-to-physical address translation as the resource saved for the CPU during context switches.\",\n  \"answer_quality_score\": 2.0,\n  \"answer_type\": \"Factually_Incorrect\",\n  \"analysis_notes\": \"The answer confuses hardware memory management (MMU/TLB) with the preservation of CPU execution state (registers/program counter), which is factually wrong for context switching.\",\n  \"strategic_question\": \"Consider that the MMU is always active and hardware-managed. What specific architectural state must be preserved to allow the CPU to resume exactly where it left off?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "ac16b8d7458a2369c9dc07e248bc7f3deb8bc9891c93c11956c4b0000deeab00": {
+    "call_type": "groq",
+    "content": "{\"score\": 1.5, \"score_reason\": \"The answer is factually incorrect because the MMU caches translations in the TLB, but the actual mappings are stored in page tables in memory, not 'saved' for the CPU in a way that differentiates it from standard memory management as phrased.\"}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "61c59f0a152cb1cafd4f9ae86336ea13a1e71ec461c1bbf07f98f474a8669dac": {
+    "call_type": "slm",
+    "content": "[CONFIDENCE_LOW]",
+    "model": "slm_gguf"
+  },
+  "37c71389c606a08946eeea91052006c811d12dd41c8ed07151f7dc1b003e7148": {
+    "call_type": "groq",
+    "content": "Got it. Could you list the specific registers a scheduler saves to restore execution flow?",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "102194ae2c135921b3f95677b867185a31e016de479cd0fd91af92321c831670": {
+    "call_type": "groq",
+    "content": "{\n  \"content_summary\": \"Candidate listed the four conditions for deadlock (Coffman conditions) instead of answering the question about scheduler registers.\",\n  \"answer_quality_score\": 0.0,\n  \"answer_type\": \"FACTUALLY_INCORRECT\",\n  \"analysis_notes\": \"The candidate answered a completely different topic (deadlock) rather than the question asked (CPU registers), constituting a factual misuse and incorrect response to the prompt.\",\n  \"strategic_question\": \"Let's return to the context switch mechanism: when the operating system replaces the currently running process with another, which specific architectural units containing the program counter and instruction set state are transferred to memory?\",\n  \"topic_is_complete\": false,\n  \"safety_violation\": false,\n  \"terminate_interview\": false,\n  \"reason_for_termination\": null\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "a5711da5cc5ffa7d851577c8c585ad01e8462a32d585c7521fecadefa557017d": {
+    "call_type": "groq",
+    "content": "{\n  \"score\": 0.0,\n  \"score_reason\": \"The answer describes the Coffman conditions for deadlock, which is completely unrelated to the question about scheduler stack registers.\"\n}",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "adb5f1aafe3d8e20cd342ec402028e168f36186052448153003b2d7bfa7fb787": {
+    "call_type": "groq",
+    "content": "No worries, let's try a different direction. What trade-offs exist between using SSDs and traditional HDDs for latency-critical workloads?",
+    "model": "qwen/qwen3.8-27b"
+  }
+}

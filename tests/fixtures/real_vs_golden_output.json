@@ -1,0 +1,218 @@
+[
+  {
+    "domain": "Python Programming",
+    "fixture_opening_q": "How does Python handle memory management for mutable vs immutable objects?",
+    "real_opening_q": "Alright, to start, what are the fundamental differences between mutable and immutable objects in Python?",
+    "turns": [
+      {
+        "turn_number": 1,
+        "candidate_answer": "Python uses reference counting along with a cyclic garbage collector. Immutable types like ints and tuples cannot be altered in place.",
+        "latency_s": 10.86,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 8.5,
+          "next_question": "Speaking of reference counting, how does Python detect and clean up reference cycles?",
+          "status": "CONTINUE",
+          "reason": null
+        },
+        "real_service": {
+          "answer_type": "Factually_Incorrect",
+          "score": 4.5,
+          "next_question": "Fair enough \u2014 when adding to a list, does the object's identity stay constant or change?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        }
+      },
+      {
+        "turn_number": 2,
+        "candidate_answer": "Python implements a generational garbage collector with generations 0, 1, and 2 that periodically tracks and inspects container objects.",
+        "latency_s": 6.29,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 9.0,
+          "next_question": "Moving to functions, how do decorators work under the hood in Python?",
+          "status": "CONTINUE",
+          "reason": null
+        },
+        "real_service": {
+          "answer_type": "Evasive_Non_Answer",
+          "score": 1.0,
+          "next_question": "Got it, but I need the direct answer on object identity. When you append to a list, does the object\u2019s identity change?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Evasive Non Answer"
+        }
+      },
+      {
+        "turn_number": 3,
+        "candidate_answer": "A decorator is a callable that accepts another function as an argument and returns a replacement callable, preserving or extending behavior.",
+        "latency_s": 0.97,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 9.0,
+          "next_question": "How does functools.wraps help preserve the wrapped function's docstring and name?",
+          "status": "CONTINUE",
+          "reason": null
+        },
+        "real_service": {
+          "answer_type": "FACTUALLY_INCORRECT",
+          "score": 0.0,
+          "next_question": "No worries, let's try a different direction. What is the memory management difference between a Python string and a list?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        }
+      }
+    ],
+    "fixture_final": {
+      "total_turns": 3,
+      "overall_score": 8.8,
+      "dominant_type": "Normal"
+    },
+    "real_final": {
+      "overall_score": 1.8,
+      "final_summary": "\ud83d\udcaa **Keep Learning**: Focus on building stronger foundational knowledge in this domain.\n\n\u274c **Accuracy Concerns**: 67% of answers contained factual errors. Review core concepts carefully."
+    }
+  },
+  {
+    "domain": "Machine Learning",
+    "fixture_opening_q": "Explain the difference between precision and recall, and when would you prioritize recall over precision?",
+    "real_opening_q": "Alright, let's begin. In general, what is the fundamental difference between supervised and unsupervised learning methods?",
+    "turns": [
+      {
+        "turn_number": 1,
+        "candidate_answer": "Precision measures true positives over all predicted positives, while recall measures true positives over all actual positives. For medical diagnosis or fraud detection, minimizing false negatives means optimizing for high recall.",
+        "latency_s": 12.84,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 8.0,
+          "next_question": "How does the F1 score balance precision and recall, and why use the harmonic mean instead of arithmetic mean?",
+          "status": "CONTINUE",
+          "reason": null
+        },
+        "real_service": {
+          "answer_type": "Factually_Incorrect",
+          "score": 0.0,
+          "next_question": "Fair enough. What kind of input data would you use for each?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        }
+      },
+      {
+        "turn_number": 2,
+        "candidate_answer": "quit",
+        "latency_s": 0.0,
+        "fixture": {
+          "answer_type": "None",
+          "score": null,
+          "next_question": null,
+          "status": "TERMINATED",
+          "reason": "UserQuit"
+        },
+        "real_service": {
+          "answer_type": "None",
+          "score": null,
+          "next_question": null,
+          "status": "TERMINATED",
+          "reason": "UserQuit",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        }
+      }
+    ],
+    "fixture_final": {
+      "total_turns": 1,
+      "overall_score": 8.0,
+      "dominant_type": "Normal"
+    },
+    "real_final": {
+      "overall_score": 0.0,
+      "final_summary": "\ud83d\udcaa **Keep Learning**: Focus on building stronger foundational knowledge in this domain.\n\n\u274c **Accuracy Concerns**: 100% of answers contained factual errors. Review core concepts carefully."
+    }
+  },
+  {
+    "domain": "Operating Systems",
+    "fixture_opening_q": "What is the fundamental difference between a process and a thread in terms of address space and context switching overhead?",
+    "real_opening_q": "Great, to start, can you briefly define what an operating system does to abstract hardware for application programmers?",
+    "turns": [
+      {
+        "turn_number": 1,
+        "candidate_answer": "Processes possess separate private address spaces and memory descriptors requiring TLB invalidation during context switching. Threads share the virtual address space, heap, and open file descriptors of their parent process.",
+        "latency_s": 11.25,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 8.5,
+          "next_question": "How does virtual memory paging map logical addresses to physical frames?",
+          "status": "CONTINUE",
+          "reason": null
+        },
+        "real_service": {
+          "answer_type": "Vague",
+          "score": 0.5,
+          "next_question": "That touches on it \u2014 how do system calls abstract hardware manipulation?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Vague"
+        }
+      },
+      {
+        "turn_number": 2,
+        "candidate_answer": "The MMU translates virtual page numbers to physical frame numbers via page tables. TLBs cache recent mappings to speed up memory translations.",
+        "latency_s": 15.77,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 9.0,
+          "next_question": "Can you explain what causes a page fault and how the kernel handles it?",
+          "status": "CONTINUE",
+          "reason": null
+        },
+        "real_service": {
+          "answer_type": "Vague",
+          "score": 3.0,
+          "next_question": "Since you touched on TLBs, how does the transition from user mode to kernel mode actually happen?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Vague"
+        }
+      },
+      {
+        "turn_number": 3,
+        "candidate_answer": "A page fault occurs when a program accesses a virtual page not currently present in physical RAM. The CPU triggers a trap, and the OS page fault handler fetches the page from swap disk.",
+        "latency_s": 26.3,
+        "fixture": {
+          "answer_type": "NORMAL",
+          "score": 8.5,
+          "next_question": null,
+          "status": "TERMINATED",
+          "reason": "SyllabusFinished"
+        },
+        "real_service": {
+          "answer_type": "Vague",
+          "score": 1.0,
+          "next_question": "Okay, building on that \u2014 you described the trap, but what exactly changes in CPU state when entering kernel mode?",
+          "status": "CONTINUE",
+          "reason": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Vague"
+        }
+      }
+    ],
+    "fixture_final": {
+      "total_turns": 3,
+      "overall_score": 8.7,
+      "dominant_type": "Normal"
+    },
+    "real_final": {
+      "overall_score": 1.5,
+      "final_summary": "\ud83d\udcaa **Keep Learning**: Focus on building stronger foundational knowledge in this domain.\n\n\u26a0\ufe0f **Be More Specific**: 100% of answers lacked detail. Try providing concrete examples and explanations."
+    }
+  }
+]

@@ -12,6 +12,9 @@ import streamlit.components.v1 as components
 import time
 import json
 from interview import InterviewOrchestrator
+import database
+import analytics_service
+import interview_service
 
 # Page configuration
 st.set_page_config(
@@ -384,6 +387,10 @@ if 'initialized' not in st.session_state:
     st.session_state.messages = []
     st.session_state.interview_started = False
     st.session_state.interview_ended = False
+    st.session_state.session_closed = False
+    st.session_state.candidate_id = None
+    st.session_state.external_id = ""
+    st.session_state.session_id = None
     st.session_state.domain = ""
     st.session_state.question_count = 0
     st.session_state.show_analysis = {}
@@ -458,129 +465,282 @@ def show_typing_indicator():
         </div>
     """, unsafe_allow_html=True)
 
-def calculate_interview_stats():
-    """Calculate statistics from current interview"""
-    if not st.session_state.messages:
-        return None
-    
-    stats = {
-        "total_questions": 0,
-        "total_answers": 0,
-        "answer_types": {
-            "Normal": 0,
-            "Vague": 0,
-            "Incorrect": 0,
-            "Hesitation": 0,
-            "Knowledge_Gap": 0,
-            "Evasive": 0,
-            "Violation": 0
-        },
-        "scores": [],
-        "topics_covered": set()
-    }
-    
-    for msg in st.session_state.messages:
-        if msg["role"] == "bot":
-            stats["total_questions"] += 1
-        elif msg["role"] == "user" and msg.get("analysis"):
-            stats["total_answers"] += 1
-            analysis = msg["analysis"]
-            
-            # Count answer types
-            answer_type = analysis.get("answer_type", "Normal")
-            if answer_type in ["NORMAL", "Normal"]:
-                stats["answer_types"]["Normal"] += 1
-            elif answer_type in ["VAGUE", "Vague"]:
-                stats["answer_types"]["Vague"] += 1
-            elif answer_type in ["FACTUALLY_INCORRECT", "Factually_Incorrect"]:
-                stats["answer_types"]["Incorrect"] += 1
-            elif answer_type == "HESITATION_SIGNAL":
-                stats["answer_types"]["Hesitation"] += 1
-            elif answer_type == "KNOWLEDGE_GAP":
-                stats["answer_types"]["Knowledge_Gap"] += 1
-            elif answer_type == "EVASIVE_NON_ANSWER":
-                stats["answer_types"]["Evasive"] += 1
-            elif answer_type == "EVASIVE_CHALLENGE":
-                stats["answer_types"]["Violation"] += 1
-            
-            # Collect scores
-            if "answer_quality_score" in analysis:
-                stats["scores"].append(analysis["answer_quality_score"])
-    
-    # Add current topic
-    if st.session_state.chatbot:
-        stats["topics_covered"].add(st.session_state.chatbot.current_topic)
-        if hasattr(st.session_state.chatbot, 'topic_syllabus'):
-            for topic in st.session_state.chatbot.topic_syllabus:
-                stats["topics_covered"].add(topic)
-    
-    return stats
+def calculate_interview_stats(candidate_id=None, session_id=None):
+    """Calculate statistics from SQLite DB for candidate/session, with in-memory fallback."""
+    cand_id = candidate_id if candidate_id is not None else st.session_state.get("candidate_id")
+    sess_id = session_id if session_id is not None else st.session_state.get("session_id")
+    return analytics_service.calculate_interview_stats(
+        candidate_id=cand_id,
+        session_id=sess_id,
+        messages=st.session_state.get("messages"),
+        chatbot=st.session_state.get("chatbot")
+    )
 
-def generate_ai_feedback():
+
+def generate_ai_feedback(stats=None):
     """Generate overall AI feedback based on performance"""
-    stats = calculate_interview_stats()
-    if not stats or stats["total_answers"] == 0:
-        return "Not enough data to generate feedback."
-    
-    feedback = []
-    
-    # Overall performance
-    avg_score = sum(stats["scores"]) / len(stats["scores"]) if stats["scores"] else 0
-    if avg_score >= 7.0:
-        feedback.append("🌟 **Excellent Performance**: You demonstrated strong knowledge and clear communication throughout the interview.")
-    elif avg_score >= 5.0:
-        feedback.append("👍 **Good Effort**: You showed decent understanding, but there's room for improvement in depth and clarity.")
-    elif avg_score >= 3.0:
-        feedback.append("📚 **Needs Improvement**: Consider reviewing the fundamentals and practicing more detailed explanations.")
-    else:
-        feedback.append("💪 **Keep Learning**: Focus on building stronger foundational knowledge in this domain.")
-    
-    # Answer quality breakdown
-    normal_pct = (stats["answer_types"]["Normal"] / stats["total_answers"]) * 100
-    vague_pct = (stats["answer_types"]["Vague"] / stats["total_answers"]) * 100
-    incorrect_pct = (stats["answer_types"]["Incorrect"] / stats["total_answers"]) * 100
-    
-    if normal_pct >= 60:
-        feedback.append(f"✅ **Strong Answers**: {normal_pct:.0f}% of your responses were clear and accurate.")
-    
-    if vague_pct > 30:
-        feedback.append(f"⚠️ **Be More Specific**: {vague_pct:.0f}% of answers lacked detail. Try providing concrete examples and explanations.")
-    
-    if incorrect_pct > 20:
-        feedback.append(f"❌ **Accuracy Concerns**: {incorrect_pct:.0f}% of answers contained factual errors. Review core concepts carefully.")
-    
-    # Behavioral feedback
-    if stats["answer_types"]["Hesitation"] > 3:
-        feedback.append("🤔 **Confidence**: Multiple hesitations detected. Practice articulating your thoughts more confidently.")
-    
-    if stats["answer_types"]["Knowledge_Gap"] > 2:
-        feedback.append("💭 **Knowledge Gaps**: Several topics where you admitted not knowing. Identify and study these areas.")
-    
-    if stats["answer_types"]["Violation"] > 0:
-        feedback.append("⚠️ **Professional Conduct**: Maintain professional demeanor even when questions are challenging.")
-    
-    return "\n\n".join(feedback)
+    if stats is None:
+        stats = calculate_interview_stats()
+    return analytics_service.generate_ai_feedback(stats)
 
-def show_analytics_page():
-    """Display comprehensive analytics page"""
-    st.markdown("""
-        <div class="main-header">
-            <h1>📊 Interview Analytics</h1>
-            <p>Detailed performance insights and feedback</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # Navigation buttons
-    col1, col2, col3 = st.columns([1, 1, 1])
+
+def render_cohort_analytics_view():
+    """Renders campus-wide cohort analytics from database.py aggregations"""
+    import plotly.graph_objects as go
+
+    summary = database.get_cohort_summary_stats()
+    if summary["total_turns"] == 0:
+        st.info("ℹ️ No interview turns recorded in the database yet. Complete an interview to populate cohort analytics.")
+        return
+
+    st.markdown("### 🏛️ Campus-Wide Cohort Overview")
+    st.caption("Aggregated performance metrics and benchmark trends across all candidates and interview sessions.")
+
+    # KPI summary cards
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("← Back to Interview", use_container_width=True):
-            st.session_state.page = "interview"
-            st.rerun()
+        st.markdown(f"""
+            <div class="stats-card">
+                <h3>{summary['total_candidates']}</h3>
+                <p>Total Candidates</p>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+            <div class="stats-card">
+                <h3>{summary['total_sessions']}</h3>
+                <p>Sessions Completed</p>
+            </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+            <div class="stats-card">
+                <h3>{summary['total_turns']}</h3>
+                <p>Total Questions Evaluated</p>
+            </div>
+        """, unsafe_allow_html=True)
+    with col4:
+        st.markdown(f"""
+            <div class="stats-card">
+                <h3>{summary['cohort_avg_score']:.1f}/10</h3>
+                <p>Cohort Mean Score</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # Callout for hardest and easiest subtopics
+    col_easiest, col_hardest = st.columns(2)
+    with col_easiest:
+        st.markdown(f"""
+            <div style="background: rgba(16, 185, 129, 0.12); border-left: 4px solid #10b981; border-radius: 8px; padding: 0.8rem 1rem; margin: 0.8rem 0;">
+                <span style="font-size: 0.75rem; color: #6ee7b7; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Easiest Subtopic Across Cohort</span><br>
+                <strong style="color: #e2e8f0; font-size: 1.1rem;">{summary['easiest_topic']}</strong>
+                <span style="color: #10b981; font-weight: 600; margin-left: 0.5rem;">({summary['easiest_score']:.1f}/10 avg)</span>
+            </div>
+        """, unsafe_allow_html=True)
+    with col_hardest:
+        st.markdown(f"""
+            <div style="background: rgba(239, 68, 68, 0.12); border-left: 4px solid #ef4444; border-radius: 8px; padding: 0.8rem 1rem; margin: 0.8rem 0;">
+                <span style="font-size: 0.75rem; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Hardest Subtopic Across Cohort</span><br>
+                <strong style="color: #e2e8f0; font-size: 1.1rem;">{summary['hardest_topic']}</strong>
+                <span style="color: #ef4444; font-weight: 600; margin-left: 0.5rem;">({summary['hardest_score']:.1f}/10 avg)</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # Aggregate 1: Subtopic Difficulty Benchmarks
+    st.markdown("### 📚 Subtopic Difficulty Benchmarks (Campus-Wide)")
+    st.caption("Average candidate score and question frequency by topic, ordered from hardest to easiest.")
+    benchmarks = database.get_cohort_topic_benchmarks()
+    if benchmarks:
+        topics = [b["subtopic"] for b in benchmarks]
+        avg_scores = [b["avg_score"] for b in benchmarks]
+        turn_counts = [b["turn_count"] for b in benchmarks]
+
+        bar_colors = []
+        for s in avg_scores:
+            if s < 5.0:
+                bar_colors.append("#ef4444")
+            elif s < 7.0:
+                bar_colors.append("#f59e0b")
+            elif s < 8.5:
+                bar_colors.append("#667eea")
+            else:
+                bar_colors.append("#10b981")
+
+        fig_bench = go.Figure()
+        fig_bench.add_trace(go.Bar(
+            x=avg_scores,
+            y=topics,
+            orientation='h',
+            marker=dict(color=bar_colors, line=dict(color="#1e1e2f", width=1)),
+            text=[f"{s:.1f}/10 ({c} turns)" for s, c in zip(avg_scores, turn_counts)],
+            textposition='auto',
+            hoverinfo='text',
+            hovertext=[f"<b>{t}</b><br>Cohort Avg: {s:.1f}/10<br>Turns Evaluated: {c}" for t, s, c in zip(topics, avg_scores, turn_counts)]
+        ))
+        fig_bench.update_layout(
+            title="Subtopic Average Score (0 = Hardest, 10 = Easiest)",
+            xaxis_title="Average Score",
+            yaxis_title="Subtopic",
+            template="plotly_dark",
+            height=320 + max(0, len(topics) * 25),
+            xaxis=dict(range=[0, 10.5]),
+            margin=dict(l=10, r=10, t=40, b=30)
+        )
+        st.plotly_chart(fig_bench, use_container_width=True)
+
+    st.markdown("---")
+
+    # Aggregate 2: Common Answer Classifications / Knowledge Gaps
+    st.markdown("### 🧩 Common Answer Classifications & Knowledge Gaps by Subtopic")
+    st.caption("Distribution of candidate response classifications across subtopics to identify widespread knowledge gaps.")
+    sub_classifications = database.get_cohort_subtopic_classifications()
+    if sub_classifications:
+        cls_keys = ["NORMAL", "VAGUE", "FACTUALLY_INCORRECT", "HESITATION_SIGNAL", "KNOWLEDGE_GAP", "EVASIVE_NON_ANSWER", "EVASIVE_CHALLENGE"]
+        cls_labels = {
+            "NORMAL": "Normal / Solid",
+            "VAGUE": "Vague",
+            "FACTUALLY_INCORRECT": "Incorrect",
+            "HESITATION_SIGNAL": "Hesitation",
+            "KNOWLEDGE_GAP": "Knowledge Gap",
+            "EVASIVE_NON_ANSWER": "Evasive",
+            "EVASIVE_CHALLENGE": "Violation"
+        }
+        color_map = {
+            "NORMAL": "#10b981",
+            "VAGUE": "#f59e0b",
+            "FACTUALLY_INCORRECT": "#ef4444",
+            "HESITATION_SIGNAL": "#8b5cf6",
+            "KNOWLEDGE_GAP": "#6366f1",
+            "EVASIVE_NON_ANSWER": "#ec4899",
+            "EVASIVE_CHALLENGE": "#dc2626"
+        }
+
+        sub_names = [sc["subtopic"] for sc in sub_classifications]
+        fig_class = go.Figure()
+
+        for k in cls_keys:
+            counts = [sc["classifications"].get(k, 0) for sc in sub_classifications]
+            if any(c > 0 for c in counts):
+                fig_class.add_trace(go.Bar(
+                    name=cls_labels.get(k, k),
+                    x=sub_names,
+                    y=counts,
+                    marker=dict(color=color_map.get(k, "#94a3b8")),
+                    text=[f"{c}" if c > 0 else "" for c in counts],
+                    textposition='inside'
+                ))
+
+        fig_class.update_layout(
+            barmode='stack',
+            title="Answer Classifications per Subtopic",
+            xaxis_title="Subtopic",
+            yaxis_title="Total Responses",
+            template="plotly_dark",
+            height=380,
+            hovermode='x unified',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_class, use_container_width=True)
+
+    st.markdown("---")
+
+    # Aggregate 3: Cohort Score & Volume Trend Over Time
+    st.markdown("### 📈 Cohort Performance & Volume Over Time")
+    st.caption("Temporal trend of completed session volume and average candidate performance.")
+    time_trend = database.get_cohort_time_trend()
+    if time_trend:
+        dates = [t["date"] for t in time_trend]
+        scores = [t["avg_overall_score"] for t in time_trend]
+        session_counts = [t["session_count"] for t in time_trend]
+
+        fig_trend = go.Figure()
+
+        # Session Count Bar
+        fig_trend.add_trace(go.Bar(
+            x=dates,
+            y=session_counts,
+            name='Sessions Completed',
+            marker=dict(color='rgba(102, 126, 234, 0.4)', line=dict(color='#667eea', width=1.5)),
+            yaxis='y2'
+        ))
+
+        # Average Overall Score Line
+        fig_trend.add_trace(go.Scatter(
+            x=dates,
+            y=scores,
+            mode='lines+markers',
+            name='Cohort Avg Score',
+            line=dict(color='#10b981', width=3),
+            marker=dict(size=9, color='#059669'),
+            yaxis='y1'
+        ))
+
+        fig_trend.update_layout(
+            title="Cohort Performance and Session Volume Trend",
+            xaxis_title="Date",
+            yaxis=dict(
+                title=dict(text="Average Overall Score (0-10)", font=dict(color="#10b981")),
+                range=[0, 10.5],
+                tickfont=dict(color="#10b981")
+            ),
+            yaxis2=dict(
+                title=dict(text="Sessions Completed", font=dict(color="#667eea")),
+                overlaying='y',
+                side='right',
+                showgrid=False,
+                tickfont=dict(color="#667eea")
+            ),
+            template="plotly_dark",
+            height=380,
+            hovermode='x unified',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_trend, use_container_width=True)
+    else:
+        st.info("No completed session trends available yet.")
+
+
+def render_candidate_analytics_view():
+    """Renders candidate performance dashboard from Phase 1"""
+
+    # Candidate Profile Header & Session Selector
+    cand = database.get_candidate_by_external_id(st.session_state.external_id)
+    sessions = database.get_candidate_sessions(st.session_state.candidate_id)
     
-    stats = calculate_interview_stats()
+    col_cand, col_sess = st.columns([1, 1])
+    with col_cand:
+        st.markdown(f"**👤 Candidate:** `{st.session_state.external_id}`")
+        if cand and cand.total_sessions > 0:
+            st.caption(f"Lifetime Avg: **{cand.avg_score or 0.0}/10** | Sessions: **{cand.total_sessions}** | Strongest: **{cand.strongest_topic or 'N/A'}** | Weakest: **{cand.weakest_topic or 'N/A'}**")
+    
+    selected_session_id = None
+    if sessions:
+        with col_sess:
+            sess_options = {"All Sessions (Lifetime)": None}
+            for s in sessions:
+                started_str = s['started_at'].strftime('%Y-%m-%d %H:%M') if hasattr(s['started_at'], 'strftime') else str(s['started_at'])[:16]
+                sess_options[f"Session #{s['session_id']} - {s['domain']} ({started_str})"] = s['session_id']
+            
+            # Default to active session if present, else latest session
+            default_index = 0
+            current_sess_id = st.session_state.get("session_id")
+            if current_sess_id and any(s['session_id'] == current_sess_id for s in sessions):
+                for idx, (label, sid) in enumerate(sess_options.items()):
+                    if sid == current_sess_id:
+                        default_index = idx
+                        break
+            
+            selected_label = st.selectbox("Select Session View:", list(sess_options.keys()), index=default_index)
+            selected_session_id = sess_options[selected_label]
+    else:
+        selected_session_id = st.session_state.get("session_id")
+
+    stats = calculate_interview_stats(candidate_id=st.session_state.candidate_id, session_id=selected_session_id)
     
     if not stats or stats["total_answers"] == 0:
-        st.warning("⚠️ No interview data available yet. Complete an interview to see analytics.")
+        st.warning("⚠️ No interview data available yet for this selection.")
         return
     
     # Key metrics row
@@ -722,7 +882,7 @@ def show_analytics_page():
     
     # AI Feedback
     st.markdown("### 🤖 AI Interviewer Feedback")
-    feedback = generate_ai_feedback()
+    feedback = generate_ai_feedback(stats)
     st.markdown(f"""
         <div class="analysis-container">
             {feedback}
@@ -734,15 +894,73 @@ def show_analytics_page():
     # Conversation history
     st.markdown("### 💬 Full Conversation History")
     with st.expander("📜 View Complete Conversation", expanded=False):
-        for idx, msg in enumerate(st.session_state.messages):
-            if msg["role"] == "bot":
-                st.markdown(f"**🤖 Interviewer:** {msg['content']}")
+        turns_data = []
+        if selected_session_id:
+            turns_data = database.get_session_turns(selected_session_id)
+        elif st.session_state.get("candidate_id"):
+            turns_data = database.get_candidate_turns(st.session_state.candidate_id)
+
+        if turns_data:
+            for t in turns_data:
+                st.markdown(f"**🤖 Interviewer (Topic: {t['subtopic']}):** {t['question_text']}")
+                st.markdown(f"**👤 You:** {t['candidate_answer']}")
+                st.markdown(f"*Classification: {t['answer_classification']} | Score: {t['score']}/10*")
+                if t.get('judge_justification'):
+                    st.markdown(f"*{t['judge_justification']}*")
+                st.markdown("---")
+        elif st.session_state.get("messages"):
+            for idx, msg in enumerate(st.session_state.messages):
+                if msg["role"] == "bot":
+                    st.markdown(f"**🤖 Interviewer:** {msg['content']}")
+                else:
+                    st.markdown(f"**👤 You:** {msg['content']}")
+                    if msg.get("analysis"):
+                        analysis = msg["analysis"]
+                        st.markdown(f"*Analysis: {analysis.get('answer_type', 'N/A')} - {analysis.get('analysis_notes', 'N/A')}*")
+                st.markdown("---")
+        else:
+            st.info("No conversation history recorded for this view.")
+
+
+def show_analytics_page():
+    """Display comprehensive analytics page sourced from persistent database"""
+    st.markdown("""
+        <div class="main-header">
+            <h1>📊 Interview Analytics</h1>
+            <p>Detailed performance insights, candidate history, and campus-wide benchmarks</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Navigation buttons
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.button("← Back to Interview", use_container_width=True):
+            st.session_state.page = "interview"
+            st.rerun()
+
+    tab_candidate, tab_cohort = st.tabs(["👤 Candidate Analytics", "🌐 Campus-Wide Cohort Overview"])
+
+    with tab_candidate:
+        cand_id = st.session_state.get("candidate_id")
+        if not cand_id:
+            st.markdown("### 🔍 Select Candidate")
+            cand_search = st.text_input("Enter Candidate Identifier to view history:", key="cand_analytics_search")
+            if cand_search and cand_search.strip():
+                found_cand = database.get_candidate_by_external_id(cand_search.strip())
+                if found_cand:
+                    st.session_state.candidate_id = found_cand.candidate_id
+                    st.session_state.external_id = found_cand.external_id
+                    st.rerun()
+                else:
+                    st.warning(f"⚠️ No records found for candidate '{cand_search.strip()}'.")
             else:
-                st.markdown(f"**👤 You:** {msg['content']}")
-                if msg.get("analysis"):
-                    analysis = msg["analysis"]
-                    st.markdown(f"*Analysis: {analysis.get('answer_type', 'N/A')} - {analysis.get('analysis_notes', 'N/A')}*")
-            st.markdown("---")
+                st.info("ℹ️ Please complete an interview or enter a candidate identifier above to view candidate history.")
+        else:
+            render_candidate_analytics_view()
+
+    with tab_cohort:
+        render_cohort_analytics_view()
+
 
 # Check which page to show
 if st.session_state.page == "analytics":
@@ -804,12 +1022,19 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
     
-    # Analytics button
-    if st.session_state.interview_ended or st.session_state.messages:
-        st.markdown("---")
-        if st.button("📊 View Analytics", use_container_width=True):
-            st.session_state.page = "analytics"
-            st.rerun()
+    # Analytics button & Candidate Indicator
+    st.markdown("---")
+    if st.session_state.get("external_id"):
+        st.markdown(f"""
+            <div style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 8px; padding: 0.6rem; text-align: center; margin-bottom: 0.8rem;">
+                <span style="font-size: 0.75rem; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.05em;">Active Candidate</span><br>
+                <strong style="color: #e2e8f0; font-size: 0.95rem;">{st.session_state.external_id}</strong>
+            </div>
+        """, unsafe_allow_html=True)
+
+    if st.button("📊 View Analytics", use_container_width=True):
+        st.session_state.page = "analytics"
+        st.rerun()
     
     # Stats with icons
     if st.session_state.interview_started:
@@ -947,8 +1172,8 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # Function to start interview with selected domain
-def start_interview_with_domain(selected_domain):
-    """Start interview with the given domain"""
+def start_interview_with_domain(selected_domain, candidate_input=None):
+    """Start interview with the given domain and candidate identity"""
     # Create centered loading screen
     st.markdown("""
         <style>
@@ -1010,31 +1235,26 @@ def start_interview_with_domain(selected_domain):
     """, unsafe_allow_html=True)
     
     try:
-        st.session_state.chatbot = InterviewOrchestrator(selected_domain)
-        
-        # Check for rate limit during initialization
-        if st.session_state.chatbot.rate_limit_hit:
+        res = interview_service.start_interview_session(
+            selected_domain=selected_domain,
+            candidate_identifier=candidate_input
+        )
+        if res.get("status") == "ERROR":
             loading_container.empty()
-            st.error("🚨 Rate limit reached. Please try again later.")
+            if res.get("error_code") == "RATE_LIMIT_EXCEEDED":
+                st.error("🚨 Rate limit reached. Please try again later.")
+            else:
+                st.error(f"❌ {res.get('message', 'Failed to start interview')}")
             st.stop()
-        
-        if not st.session_state.chatbot.current_topic:
-            loading_container.empty()
-            st.error("❌ Failed to create interview syllabus. Please try again.")
-            st.stop()
-        
-        # Start interview
-        question = st.session_state.chatbot.start_interview()
-        
-        # Check if start_interview hit rate limit
-        if isinstance(question, dict) and question.get("status") == "TERMINATED":
-            loading_container.empty()
-            st.error("🚨 Rate limit reached. Please try again later.")
-            st.stop()
-        
+
+        st.session_state.candidate_id = res["candidate_id"]
+        st.session_state.external_id = res["external_id"]
+        st.session_state.session_id = res["session_id"]
+        st.session_state.session_closed = False
+        st.session_state.chatbot = res["chatbot"]
         st.session_state.messages.append({
             "role": "bot",
-            "content": question,
+            "content": res["question"],
             "analysis": None
         })
         st.session_state.interview_started = True
@@ -1054,6 +1274,14 @@ if not st.session_state.interview_started:
     
     with col2:
         st.markdown("### 🚀 Ready to begin?")
+        
+        candidate_input = st.text_input(
+            "Candidate Identifier (Optional)",
+            value=st.session_state.get("external_id", ""),
+            placeholder="e.g., your name or email (leave blank for unique anonymous session)",
+            key="candidate_ident_input"
+        )
+
         st.markdown("Enter the technical domain you'd like to be interviewed on:")
         
         domain = st.text_input(
@@ -1066,7 +1294,7 @@ if not st.session_state.interview_started:
         with col_b:
             if st.button("🎯 Start Interview", use_container_width=True):
                 if domain:
-                    start_interview_with_domain(domain)
+                    start_interview_with_domain(domain, candidate_input)
                 else:
                     st.warning("⚠️ Please enter an interview domain")
     
@@ -1097,7 +1325,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="se", use_container_width=True):
-            start_interview_with_domain("Software Engineering")
+            start_interview_with_domain("Software Engineering", candidate_input)
     
     with col2:
         st.markdown("""
@@ -1118,7 +1346,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="ml", use_container_width=True):
-            start_interview_with_domain("Machine Learning")
+            start_interview_with_domain("Machine Learning", candidate_input)
     
     with col3:
         st.markdown("""
@@ -1135,7 +1363,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="ec", use_container_width=True):
-            start_interview_with_domain("ECE")
+            start_interview_with_domain("ECE", candidate_input)
     
     with col4:
         st.markdown("""
@@ -1152,7 +1380,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="crypto", use_container_width=True):
-            start_interview_with_domain("Cryptography")
+            start_interview_with_domain("Cryptography", candidate_input)
     
     # Second row of popular domains
     col5, col6, col7, col8 = st.columns(4)
@@ -1172,7 +1400,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="python", use_container_width=True):
-            start_interview_with_domain("Python Programming")
+            start_interview_with_domain("Python Programming", candidate_input)
     
     with col6:
         st.markdown("""
@@ -1189,7 +1417,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="ds", use_container_width=True):
-            start_interview_with_domain("Data Structures and Algorithms")
+            start_interview_with_domain("Data Structures and Algorithms", candidate_input)
     
     with col7:
         st.markdown("""
@@ -1206,7 +1434,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="web", use_container_width=True):
-            start_interview_with_domain("Web Development")
+            start_interview_with_domain("Web Development", candidate_input)
     
     with col8:
         st.markdown("""
@@ -1223,7 +1451,7 @@ if not st.session_state.interview_started:
             </div>
         """, unsafe_allow_html=True)
         if st.button("Start", key="cloud", use_container_width=True):
-            start_interview_with_domain("Cloud Computing")
+            start_interview_with_domain("Cloud Computing", candidate_input)
 
 else:
     # Interview in progress
@@ -1272,44 +1500,38 @@ else:
                 """, unsafe_allow_html=True)
                 
                 try:
-                    response = st.session_state.chatbot.process_user_answer(user_input)
+                    outcome = interview_service.process_candidate_answer(
+                        chatbot=st.session_state.chatbot,
+                        user_answer=user_input
+                    )
                     typing_placeholder.empty()
-                    
-                    # Update the user message with analysis
-                    if response.get('analysis'):
-                        st.session_state.messages[-1]['analysis'] = response['analysis']
-                        # Track performance data
-                        score = response['analysis'].get('answer_quality_score', 0)
+
+                    if outcome.get("analysis"):
+                        st.session_state.messages[-1]["analysis"] = outcome["analysis"]
+                        score = outcome.get("score") if outcome.get("score") is not None else outcome["analysis"].get("answer_quality_score", 0)
                         st.session_state.performance_data.append({
-                            'question_num': st.session_state.question_count,
-                            'score': score,
-                            'answer_type': response['analysis'].get('answer_type', 'Unknown')
+                            "question_num": st.session_state.question_count,
+                            "score": score,
+                            "answer_type": outcome["analysis"].get("answer_type", "Unknown")
                         })
-                    
-                    if response['status'] == "TERMINATED":
+
+                    if outcome["status"] == "TERMINATED":
                         st.session_state.interview_ended = True
-                        if response.get("reason") == "RateLimit":
-                            end_message = "🚨 Rate limit reached. Thank you for your time!"
-                        elif response.get("reason") == "SyllabusFinished":
-                            end_message = "🎉 That covers all topics! Thank you for your time!"
-                        else:
-                            end_message = "Thank you for your time. The interview has concluded."
-                        
                         st.session_state.messages.append({
                             "role": "bot",
-                            "content": end_message,
+                            "content": outcome.get("message", "Thank you for your time. The interview has concluded."),
                             "analysis": None
                         })
                     else:
                         st.session_state.question_count += 1
                         st.session_state.messages.append({
                             "role": "bot",
-                            "content": response['next_question'],
+                            "content": outcome["next_question"],
                             "analysis": None
                         })
-                    
+
                     st.rerun()
-                    
+
                 except Exception as e:
                     typing_placeholder.empty()
                     st.error(f"❌ An error occurred: {str(e)}")
@@ -1319,6 +1541,15 @@ else:
         st.markdown("### 🎊 Interview Complete!")
         st.markdown("Thank you for using the Adaptive Performance-Based Interview Bot.")
         
+        # Close session in DB and recompute candidate aggregates
+        if not st.session_state.get("session_closed", False) and st.session_state.get("session_id"):
+            interview_service.finalize_interview_session(
+                session_id=st.session_state.session_id,
+                chatbot=st.session_state.get("chatbot"),
+                candidate_id=st.session_state.get("candidate_id")
+            )
+            st.session_state.session_closed = True
+
         # Save to history
         if st.session_state.messages and st.session_state.domain:
             interview_record = {
@@ -1342,12 +1573,14 @@ else:
         
         with col2:
             if st.button("🔄 Start New Interview", use_container_width=True):
-                # Reset session state
+                # Reset session state for next interview (keep candidate_id/external_id for continuity)
                 st.session_state.initialized = False
                 st.session_state.chatbot = None
                 st.session_state.messages = []
                 st.session_state.interview_started = False
                 st.session_state.interview_ended = False
+                st.session_state.session_closed = False
+                st.session_state.session_id = None
                 st.session_state.domain = ""
                 st.session_state.question_count = 0
                 st.session_state.performance_data = []

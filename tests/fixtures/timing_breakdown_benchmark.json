@@ -1,0 +1,118 @@
+{
+  "cold_model_load_s": 10.52,
+  "time_to_first_question_s": 0.47,
+  "stages": {
+    "parallel_eval": {
+      "p50_s": 9.037,
+      "p95_s": 10.233
+    },
+    "slm_triage": {
+      "p50_s": 2.215,
+      "p95_s": 6.031
+    },
+    "refine_or_expert": {
+      "p50_s": 14.207,
+      "p95_s": 16.308
+    },
+    "db_write": {
+      "p50_s": 0.0,
+      "p95_s": 0.0
+    },
+    "total_turn": {
+      "p50_s": 25.922,
+      "p95_s": 27.876
+    }
+  },
+  "turns_detail": [
+    {
+      "turn": 1,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 0.495,
+      "slm_triage_s": 8.856,
+      "refine_or_expert_s": 0.417,
+      "db_write_s": 8e-05,
+      "total_turn_s": 9.768
+    },
+    {
+      "turn": 2,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 0.546,
+      "slm_triage_s": 2.512,
+      "refine_or_expert_s": 0.349,
+      "db_write_s": 0.00011,
+      "total_turn_s": 3.407
+    },
+    {
+      "turn": 3,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 0.686,
+      "slm_triage_s": 2.152,
+      "refine_or_expert_s": 1.347,
+      "db_write_s": 8e-05,
+      "total_turn_s": 4.185
+    },
+    {
+      "turn": 4,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 10.673,
+      "slm_triage_s": 2.578,
+      "refine_or_expert_s": 13.982,
+      "db_write_s": 7e-05,
+      "total_turn_s": 27.233
+    },
+    {
+      "turn": 5,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 9.155,
+      "slm_triage_s": 2.208,
+      "refine_or_expert_s": 13.49,
+      "db_write_s": 0.0001,
+      "total_turn_s": 24.853
+    },
+    {
+      "turn": 6,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 9.681,
+      "slm_triage_s": 1.979,
+      "refine_or_expert_s": 14.643,
+      "db_write_s": 0.00013,
+      "total_turn_s": 26.303
+    },
+    {
+      "turn": 7,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 9.476,
+      "slm_triage_s": 2.221,
+      "refine_or_expert_s": 15.153,
+      "db_write_s": 0.00013,
+      "total_turn_s": 26.85
+    },
+    {
+      "turn": 8,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 8.92,
+      "slm_triage_s": 2.189,
+      "refine_or_expert_s": 14.433,
+      "db_write_s": 7e-05,
+      "total_turn_s": 25.542
+    },
+    {
+      "turn": 9,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 9.696,
+      "slm_triage_s": 2.179,
+      "refine_or_expert_s": 16.292,
+      "db_write_s": 0.00014,
+      "total_turn_s": 28.167
+    },
+    {
+      "turn": 10,
+      "routing": "groq_fallback",
+      "parallel_eval_s": 8.913,
+      "slm_triage_s": 2.286,
+      "refine_or_expert_s": 16.321,
+      "db_write_s": 0.00013,
+      "total_turn_s": 27.52
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "health": {
+    "status": "healthy",
+    "database_connected": true,
+    "db_ok": true,
+    "model_mode": "groq_fallback",
+    "model_loaded": false,
+    "model_load_seconds": 0.0,
+    "groq_configured": false,
+    "version": "1.0.0",
+    "active_sessions_in_memory": 0
+  },
+  "start": {
+    "status": "STARTED",
+    "session_id": 1,
+    "domain": "Python Programming",
+    "question": "Alright, to start, can you briefly explain the primary difference between lists and tuples in Python?",
+    "turn_number": 1,
+    "current_subtopic": "Python Programming",
+    "current_difficulty": "Fundamental"
+  },
+  "turn_1": {
+    "status": "CONTINUE",
+    "reason": null,
+    "next_question": "Building on that immutability point, how does the performance of a tuple compare to a list when iterating through large datasets?",
+    "analysis": {
+      "content_summary": "Candidate distinguishes lists and tuples primarily by mutability status.",
+      "answer_quality_score": 6.5,
+      "answer_type": "Vague",
+      "analysis_notes": "The answer is factually correct but lacks depth by omitting other key differences such as performance, hashability, and syntax, making it vague for a technical interview.",
+      "strategic_question": "How does the immutability of tuples affect their performance compared to lists when iterating through large datasets?",
+      "topic_is_complete": false,
+      "safety_violation": false,
+      "terminate_interview": false,
+      "reason_for_termination": null,
+      "score_used": 8.5
+    },
+    "score": 8.5,
+    "answer_type": "Vague",
+    "feedback_badge": {
+      "label": "Vague",
+      "category": "vague"
+    },
+    "label": "Vague",
+    "category": "vague",
+    "turn_number": 1,
+    "current_subtopic": "Python Programming",
+    "current_difficulty": "Advanced"
+  }
+}

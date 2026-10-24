@@ -1,0 +1,57 @@
+{
+  "domain": "Operating Systems",
+  "candidate_identifier": "test-replay-os-finish",
+  "syllabus": [],
+  "opening_question": "What is the fundamental difference between a process and a thread in terms of address space and context switching overhead?",
+  "turns": [
+    {
+      "turn_number": 1,
+      "candidate_answer": "Processes possess separate private address spaces and memory descriptors requiring TLB invalidation during context switching. Threads share the virtual address space, heap, and open file descriptors of their parent process.",
+      "analysis": {
+        "answer_quality_score": 8.5,
+        "score_used": 8.5,
+        "answer_type": "NORMAL",
+        "justification": "Thorough understanding of kernel memory mappings and TLB context switch impact.",
+        "technical_depth": "Expert",
+        "subtopic": "Operating Systems"
+      },
+      "next_question": "How does virtual memory paging map logical addresses to physical frames?",
+      "expected_status": "CONTINUE"
+    },
+    {
+      "turn_number": 2,
+      "candidate_answer": "The MMU translates virtual page numbers to physical frame numbers via page tables. TLBs cache recent mappings to speed up memory translations.",
+      "analysis": {
+        "answer_quality_score": 9.0,
+        "score_used": 9.0,
+        "answer_type": "NORMAL",
+        "justification": "Accurate breakdown of MMU page translation and TLB caching.",
+        "technical_depth": "Expert",
+        "subtopic": "Operating Systems"
+      },
+      "next_question": "Can you explain what causes a page fault and how the kernel handles it?",
+      "expected_status": "CONTINUE"
+    },
+    {
+      "turn_number": 3,
+      "candidate_answer": "A page fault occurs when a program accesses a virtual page not currently present in physical RAM. The CPU triggers a trap, and the OS page fault handler fetches the page from swap disk.",
+      "analysis": {
+        "answer_quality_score": 8.5,
+        "score_used": 8.5,
+        "answer_type": "NORMAL",
+        "justification": "Clear and complete explanation of page fault interrupt mechanism and disk I/O handling.",
+        "technical_depth": "Expert",
+        "subtopic": "Operating Systems"
+      },
+      "next_question": null,
+      "expected_status": "TERMINATED",
+      "expected_reason": "SyllabusFinished",
+      "expected_message": "🎉 That covers all topics! Thank you for your time!"
+    }
+  ],
+  "expected_final": {
+    "total_turns": 3,
+    "overall_score": 8.7,
+    "dominant_type": "Normal"
+  }
+}

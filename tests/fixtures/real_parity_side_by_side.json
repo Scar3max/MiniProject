@@ -1,0 +1,198 @@
+{
+  "original": [
+    {
+      "domain": "Python Programming",
+      "opening_question": "Great, to start, how does Python's garbage collector manage memory using reference counting?",
+      "turns": [
+        {
+          "user_answer": "A list is mutable while a tuple is immutable, meaning tuple contents cannot be changed after creation.",
+          "status": "CONTINUE",
+          "next_question": "Fair enough. Since you focused on tuples, could you actually explain how reference counting works?",
+          "score": 0.0,
+          "answer_type": "FACTUALLY_INCORRECT",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        },
+        {
+          "user_answer": "Python uses reference counting along with a cyclic garbage collector to reclaim unreachable objects.",
+          "status": "CONTINUE",
+          "next_question": "Got it. What happens to an object's memory immediately when its reference count drops to zero?",
+          "score": 3.5,
+          "answer_type": "Normal",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        },
+        {
+          "user_answer": "A decorator takes a callable as an argument and returns a new callable wrapped with additional behavior.",
+          "status": "CONTINUE",
+          "next_question": "No worries at all. When an object becomes unreachable, what specific function handles its cleanup?",
+          "score": 0.0,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        }
+      ],
+      "overall_score": 1.2,
+      "final_summary": ""
+    },
+    {
+      "domain": "Machine Learning",
+      "opening_question": "Great, to start, simply explain what feature scaling is and why it improves model convergence",
+      "turns": [
+        {
+          "user_answer": "Supervised learning trains on labeled data pairs, whereas unsupervised learning discovers latent structure in unlabeled data.",
+          "status": "CONTINUE",
+          "next_question": "Fair enough. Were you trying to answer a different question entirely?",
+          "score": 0.0,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        },
+        {
+          "user_answer": "quit",
+          "status": "TERMINATED",
+          "next_question": null,
+          "score": null,
+          "answer_type": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        }
+      ],
+      "overall_score": 0.0,
+      "final_summary": ""
+    },
+    {
+      "domain": "Operating Systems",
+      "opening_question": "Alright, let's start. What is the fundamental resource that a context switch primarily preserves when migrating execution between processes?",
+      "turns": [
+        {
+          "user_answer": "Processes have isolated address spaces, while threads of the same process share virtual memory, descriptors, and code segments.",
+          "status": "CONTINUE",
+          "next_question": "Fair enough, but that sounds like memory management. What actually gets saved for the CPU?",
+          "score": 5.5,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        },
+        {
+          "user_answer": "The MMU translates virtual page numbers to physical frame numbers using page tables and TLB caches.",
+          "status": "CONTINUE",
+          "next_question": "Got it. Could you list the specific registers a scheduler saves to restore execution flow?",
+          "score": 1.5,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        },
+        {
+          "user_answer": "Deadlock requires mutual exclusion, hold and wait, no preemption, and circular wait.",
+          "status": "CONTINUE",
+          "next_question": "No worries, let's try a different direction. What trade-offs exist between using SSDs and traditional HDDs for latency-critical workloads?",
+          "score": 0.0,
+          "answer_type": "FACTUALLY_INCORRECT",
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        }
+      ],
+      "overall_score": 2.3,
+      "final_summary": ""
+    }
+  ],
+  "extracted": [
+    {
+      "domain": "Python Programming",
+      "opening_question": "Great, to start, how does Python's garbage collector manage memory using reference counting?",
+      "turns": [
+        {
+          "user_answer": "A list is mutable while a tuple is immutable, meaning tuple contents cannot be changed after creation.",
+          "status": "CONTINUE",
+          "next_question": "Fair enough. Since you focused on tuples, could you actually explain how reference counting works?",
+          "score": 0.0,
+          "answer_type": "FACTUALLY_INCORRECT",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        },
+        {
+          "user_answer": "Python uses reference counting along with a cyclic garbage collector to reclaim unreachable objects.",
+          "status": "CONTINUE",
+          "next_question": "Got it. What happens to an object's memory immediately when its reference count drops to zero?",
+          "score": 3.5,
+          "answer_type": "Normal",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Good Answer"
+        },
+        {
+          "user_answer": "A decorator takes a callable as an argument and returns a new callable wrapped with additional behavior.",
+          "status": "CONTINUE",
+          "next_question": "No worries at all. When an object becomes unreachable, what specific function handles its cleanup?",
+          "score": 0.0,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        }
+      ],
+      "overall_score": 1.2,
+      "final_summary": "\ud83d\udcaa **Keep Learning**: Focus on building stronger foundational knowledge in this domain.\n\n\u274c **Accuracy Concerns**: 67% of answers contained factual errors. Review core concepts carefully."
+    },
+    {
+      "domain": "Machine Learning",
+      "opening_question": "Great, to start, simply explain what feature scaling is and why it improves model convergence",
+      "turns": [
+        {
+          "user_answer": "Supervised learning trains on labeled data pairs, whereas unsupervised learning discovers latent structure in unlabeled data.",
+          "status": "CONTINUE",
+          "next_question": "Fair enough. Were you trying to answer a different question entirely?",
+          "score": 0.0,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        },
+        {
+          "user_answer": "quit",
+          "status": "TERMINATED",
+          "next_question": null,
+          "score": null,
+          "answer_type": null,
+          "momentum": "NEUTRAL",
+          "feedback_badge": null
+        }
+      ],
+      "overall_score": 0.0,
+      "final_summary": "\ud83d\udcaa **Keep Learning**: Focus on building stronger foundational knowledge in this domain.\n\n\u274c **Accuracy Concerns**: 100% of answers contained factual errors. Review core concepts carefully."
+    },
+    {
+      "domain": "Operating Systems",
+      "opening_question": "Alright, let's start. What is the fundamental resource that a context switch primarily preserves when migrating execution between processes?",
+      "turns": [
+        {
+          "user_answer": "Processes have isolated address spaces, while threads of the same process share virtual memory, descriptors, and code segments.",
+          "status": "CONTINUE",
+          "next_question": "Fair enough, but that sounds like memory management. What actually gets saved for the CPU?",
+          "score": 5.5,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        },
+        {
+          "user_answer": "The MMU translates virtual page numbers to physical frame numbers using page tables and TLB caches.",
+          "status": "CONTINUE",
+          "next_question": "Got it. Could you list the specific registers a scheduler saves to restore execution flow?",
+          "score": 1.5,
+          "answer_type": "Factually_Incorrect",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        },
+        {
+          "user_answer": "Deadlock requires mutual exclusion, hold and wait, no preemption, and circular wait.",
+          "status": "CONTINUE",
+          "next_question": "No worries, let's try a different direction. What trade-offs exist between using SSDs and traditional HDDs for latency-critical workloads?",
+          "score": 0.0,
+          "answer_type": "FACTUALLY_INCORRECT",
+          "momentum": "NEUTRAL",
+          "feedback_badge": "Incorrect"
+        }
+      ],
+      "overall_score": 2.3,
+      "final_summary": "\ud83d\udcaa **Keep Learning**: Focus on building stronger foundational knowledge in this domain.\n\n\u274c **Accuracy Concerns**: 100% of answers contained factual errors. Review core concepts carefully."
+    }
+  ]
+}

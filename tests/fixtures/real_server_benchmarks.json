@@ -1,0 +1,25 @@
+{
+  "memory_before_model_load_mb": 90.7,
+  "memory_after_model_load_mb": 6215.56,
+  "memory_delta_mb": 6124.86,
+  "model_load_time_s": 9.13,
+  "time_to_first_question_s": 12.68,
+  "answer_latencies_s": [
+    14.89,
+    0.61,
+    0.68
+  ],
+  "avg_answer_latency_s": 5.39,
+  "health_loaded": {
+    "status": "healthy",
+    "database_connected": true,
+    "model_mode": "slm_hybrid",
+    "active_sessions_in_memory": 0
+  },
+  "health_missing": {
+    "status": "healthy",
+    "database_connected": true,
+    "model_mode": "groq_fallback",
+    "active_sessions_in_memory": 0
+  }
+}

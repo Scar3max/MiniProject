@@ -1,0 +1,59 @@
+{
+  "domain": "Python Programming",
+  "candidate_identifier": "test-replay-python",
+  "syllabus": [
+    "Data Types & Memory",
+    "Functions & Decorators",
+    "Concurrency & GIL"
+  ],
+  "opening_question": "How does Python handle memory management for mutable vs immutable objects?",
+  "turns": [
+    {
+      "turn_number": 1,
+      "candidate_answer": "Python uses reference counting along with a cyclic garbage collector. Immutable types like ints and tuples cannot be altered in place.",
+      "analysis": {
+        "answer_quality_score": 8.5,
+        "score_used": 8.5,
+        "answer_type": "NORMAL",
+        "justification": "Clear and accurate explanation of reference counting and object immutability.",
+        "technical_depth": "Advanced",
+        "subtopic": "Data Types & Memory"
+      },
+      "next_question": "Speaking of reference counting, how does Python detect and clean up reference cycles?",
+      "expected_status": "CONTINUE"
+    },
+    {
+      "turn_number": 2,
+      "candidate_answer": "Python implements a generational garbage collector with generations 0, 1, and 2 that periodically tracks and inspects container objects.",
+      "analysis": {
+        "answer_quality_score": 9.0,
+        "score_used": 9.0,
+        "answer_type": "NORMAL",
+        "justification": "Comprehensive breakdown of generational GC heuristic and container tracking.",
+        "technical_depth": "Expert",
+        "subtopic": "Data Types & Memory"
+      },
+      "next_question": "Moving to functions, how do decorators work under the hood in Python?",
+      "expected_status": "CONTINUE"
+    },
+    {
+      "turn_number": 3,
+      "candidate_answer": "A decorator is a callable that accepts another function as an argument and returns a replacement callable, preserving or extending behavior.",
+      "analysis": {
+        "answer_quality_score": 9.0,
+        "score_used": 9.0,
+        "answer_type": "NORMAL",
+        "justification": "Precise grasp of first-class functions and closure wrappers.",
+        "technical_depth": "Expert",
+        "subtopic": "Functions & Decorators"
+      },
+      "next_question": "How does functools.wraps help preserve the wrapped function's docstring and name?",
+      "expected_status": "CONTINUE"
+    }
+  ],
+  "expected_final": {
+    "total_turns": 3,
+    "overall_score": 8.8,
+    "dominant_type": "Normal"
+  }
+}

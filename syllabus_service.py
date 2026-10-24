@@ -26,11 +26,16 @@ class SyllabusService:
         self.misses = 0
         self._init_db()
 
+    def _get_connection(self):
+        """Thread-safe SQLite connection with WAL mode and busy timeout."""
+        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
     def _init_db(self):
-        # NOTE: If we scaled to multiple instances, we would need distributed locking or Redis.
-        # SQLite is sufficient for the current architecture.
         try:
-            with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
+            with contextlib.closing(self._get_connection()) as conn:
                 with conn:
                     conn.execute("""
                         CREATE TABLE IF NOT EXISTS syllabus_cache (
@@ -80,7 +85,7 @@ class SyllabusService:
 
     def _read_from_cache(self, domain):
         try:
-            with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
+            with contextlib.closing(self._get_connection()) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT syllabus FROM syllabus_cache WHERE domain = ? AND version = ?",
@@ -95,9 +100,9 @@ class SyllabusService:
 
     def _save_to_cache(self, domain, syllabus):
         try:
-            with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
+            with contextlib.closing(self._get_connection()) as conn:
                 with conn:
-                    # INSERT OR REPLACE handles duplicates safely (thread-safe for simple cases)
+                    # INSERT OR REPLACE handles duplicates safely
                     conn.execute(
                         "INSERT OR REPLACE INTO syllabus_cache (domain, version, syllabus) VALUES (?, ?, ?)",
                         (domain, SYLLABUS_VERSION, json.dumps(syllabus))
@@ -112,11 +117,22 @@ class SyllabusService:
             response = self.groq_client.chat.completions.create(
                 model="qwen/qwen3.8-27b",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
             )
             
             clean_response = response.choices[0].message.content.strip()
+            if clean_response.startswith("```"):
+                lines = clean_response.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                clean_response = "\n".join(lines).strip()
             syllabus = json.loads(clean_response)
+            if isinstance(syllabus, dict):
+                for v in syllabus.values():
+                    if isinstance(v, list):
+                        syllabus = v
+                        break
             return syllabus
         except Exception as e:
             logger.error(f"Groq syllabus generation failed: {e}")
@@ -128,7 +144,7 @@ class SyllabusService:
         Can clear entirely, by domain, or by domain+version.
         """
         try:
-            with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
+            with contextlib.closing(self._get_connection()) as conn:
                 with conn:
                     if domain and version:
                         conn.execute("DELETE FROM syllabus_cache WHERE domain = ? AND version = ?", (domain, version))
@@ -148,7 +164,7 @@ class SyllabusService:
             rate = self.hits / total
             print(f"[CACHE STATS] Hits: {self.hits}, Misses: {self.misses}, Hit Rate: {rate:.2%}")
 
-# Expose a global method for easy cache clearing from outside (e.g., admin console)
+# Expose a global method for easy cache clearing from outside
 def clear_syllabus_cache(domain=None, version=None, db_path="interview_cache.db"):
     service = SyllabusService(groq_client=None, db_path=db_path)
     service.clear_cache(domain, version)
